@@ -1,5 +1,7 @@
 import math
 
+import pytest
+
 from chessstyle import features
 
 HDR = '[Event "t"]\n[TimeControl "600"]\n[Result "*"]\n\n'
@@ -38,3 +40,39 @@ def test_queen_trade_long_castle_checks_and_no_clocks():
 def test_short_game_skipped_and_time_control_parsing():
     assert features.extract(HDR + "1. e4 e5 2. Nf3 *") is None
     assert features.parse_tc("600") == (600, 0) and features.parse_tc("600+5") == (600, 5)
+
+
+HUNG = HDR + "1. e4 e5 2. Qh5 Nc6 3. Qxe5+ Nxe5 *"
+LEGAL = HDR + "1. e4 e5 2. Nf3 d6 3. Bc4 Bg4 4. Nc3 g6 5. Nxe5 Bxd1 6. Bxf7+ Ke7 7. Nd5# *"
+
+
+@pytest.fixture(scope="module")
+def engine():
+    e = features.open_engine()
+    if e is None:
+        pytest.skip("STOCKFISH_PATH not set")
+    yield e
+    e.quit()
+
+
+def test_hung_queen_is_blunder_not_sacrifice(engine):
+    w = features.extract(HUNG, engine, min_plies=0)["white"]
+    assert (w["sacrifices"], w["material_blunders"]) == (0, 1)
+
+
+def test_sound_queen_offer_is_sacrifice(engine):
+    f = features.extract(LEGAL, engine, min_plies=0)
+    assert (f["white"]["sacrifices"], f["white"]["material_blunders"]) == (1, 0)
+    assert f["black"]["sacrifices"] == 0
+
+
+def test_features_table_rows_and_skips():
+    g = {"url": "u1", "end_time": 1, "time_control": "600", "pgn": CASTLE,
+         "white": {"username": "Me", "rating": 1700}, "black": {"username": "Opp", "rating": 1720}}
+    short = dict(g, url="u2", pgn=HDR + "1. e4 e5 *")
+    no_pgn = {k: v for k, v in g.items() if k != "pgn"}
+    stranger = dict(g, url="u3", white={"username": "x", "rating": 1}, black={"username": "y", "rating": 1})
+    t = features.features_table([g, short, no_pgn, stranger], "me")
+    assert list(t.who) == ["player", "opponent"]
+    assert list(t.rating) == [1700, 1720] and list(t.player_rating) == [1700, 1700]
+    assert list(t.username) == ["me", "opp"]

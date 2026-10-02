@@ -1,10 +1,12 @@
 """Per-game style features from a chess.com PGN (python-chess; engine optional)."""
 import io
 import math
+import os
 
 import chess
 import chess.engine
 import chess.pgn
+import pandas as pd
 
 NAN = float("nan")
 VALUES = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9}
@@ -60,9 +62,33 @@ def _time(own_clocks, base, inc):
             "time_trouble": int(min(own_clocks) < 0.1 * base)}
 
 
+def open_engine():
+    """Stockfish from $STOCKFISH_PATH, or None (sacrifice/blunder features then stay NaN)."""
+    path = os.environ.get("STOCKFISH_PATH")
+    return chess.engine.SimpleEngine.popen_uci(path) if path else None
+
+
+def _eval(engine, board, color, depth):
+    info = engine.analyse(board, chess.engine.Limit(depth=depth))
+    return info["score"].pov(color).score(mate_score=10000)
+
+
 def _swings(color, own, boards, engine, depth):
-    """Placeholder until Task 3 adds the engine check: no engine -> NaN."""
-    return {"sacrifices": NAN, "material_blunders": NAN}
+    """Own moves after which material is down >= 2 after the reply and still 2 moves later.
+    The engine splits them: eval drop < 1 pawn = sacrifice, otherwise a material blunder."""
+    if engine is None:
+        return {"sacrifices": NAN, "material_blunders": NAN}
+    sac = blunder = 0
+    last = len(boards) - 1
+    bal = lambda b: material(b, color) - material(b, not color)
+    for i in own:
+        b0 = bal(boards[i])
+        if bal(boards[min(i + 2, last)]) <= b0 - 2 and bal(boards[min(i + 4, last)]) <= b0 - 2:
+            if _eval(engine, boards[i], color, depth) - _eval(engine, boards[i + 1], color, depth) < 100:
+                sac += 1
+            else:
+                blunder += 1
+    return {"sacrifices": sac, "material_blunders": blunder}
 
 
 def _side(color, own, boards, moves, clocks, base, inc, engine, depth):
@@ -123,3 +149,20 @@ def extract(pgn, engine=None, depth=10, min_plies=20):
                  opposite_castle=NAN if math.isnan(long_) or math.isnan(other) else int(long_ != other))
         out["white" if color else "black"] = f
     return out
+
+
+def features_table(games, username, engine=None):
+    """chess.com game dicts -> one row per side ('player' = username, else 'opponent'). Short games skipped."""
+    u, rows = username.lower(), []
+    for g in games:
+        me = next((s for s in ("white", "black") if g[s]["username"].lower() == u), None)
+        if me is None or not g.get("pgn"):
+            continue
+        feats = extract(g["pgn"], engine)
+        if feats is None:
+            continue
+        for side in ("white", "black"):
+            rows.append({"game": g["url"], "end_time": g["end_time"], "who": "player" if side == me else "opponent",
+                         "username": g[side]["username"].lower(), "side": side, "rating": g[side]["rating"],
+                         "player_rating": g[me]["rating"], "time_control": g["time_control"], **feats[side]})
+    return pd.DataFrame(rows)
