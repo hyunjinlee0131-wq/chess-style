@@ -35,3 +35,25 @@ def test_unknown_user_is_a_clear_error(monkeypatch):
     monkeypatch.setattr(fetch, "get_json", get_json)
     with pytest.raises(ValueError, match="not found"):
         fetch.games("nobody-xyz")
+
+
+def test_get_json_retries_timeouts(monkeypatch):
+    attempts = []
+
+    class Resp:
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+        def read(self, *a):
+            return b'{"ok": 1}'
+
+    def urlopen(req, timeout):
+        attempts.append(1)
+        if len(attempts) < 3:
+            raise TimeoutError("The read operation timed out")
+        return Resp()
+    monkeypatch.setattr(fetch.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(fetch.time, "sleep", lambda s: None)
+    assert fetch.get_json("https://example.test") == {"ok": 1}
+    assert len(attempts) == 3

@@ -11,14 +11,19 @@ HEADERS = {"User-Agent": "chess-style (github.com/hyunjinlee0131-wq)"}
 
 
 def get_json(url, tries=5):
+    """GET JSON, retrying rate limits (429) and network errors (timeouts, resets) with backoff."""
     for i in range(tries):
+        last = i == tries - 1
         try:
-            with urllib.request.urlopen(urllib.request.Request(url, headers=HEADERS), timeout=30) as r:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=HEADERS), timeout=60) as r:
                 return json.load(r)
         except urllib.error.HTTPError as e:
-            if e.code != 429 or i == tries - 1:
+            if e.code != 429 or last:
                 raise
-            time.sleep(2 ** i)
+        except OSError:  # URLError, TimeoutError, ConnectionResetError
+            if last:
+                raise
+        time.sleep(2 ** i)
 
 
 def games(username, time_class="rapid", cache=DATA / "raw"):
