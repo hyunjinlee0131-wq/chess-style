@@ -45,9 +45,10 @@ fewer than 30 GMs; any blitz-based GM is labelled as such.
 
 **API etiquette:** serial requests, `User-Agent` with contact email, retry with backoff on 429.
 
-**Storage:** raw PGN cached at `data/raw/{username}/{yyyy-mm}.pgn` (past months never refetched);
-feature tables as CSV in `data/`. `data/` is gitignored except `data/gm_profiles.csv`, which is
-committed so the later app needs no rebuild.
+**Storage:** raw monthly archives (JSON, which keeps rating/rated/time-class metadata the PGN lacks)
+cached at `data/raw/{username}/{yyyy-mm}.json` (past months never refetched); feature tables as CSV
+in `data/`. `data/` is gitignored except `data/gm_games.csv` (per-game GM features, needed for
+validation and reading lists), committed so the later app needs no rebuild.
 
 **Known bias:** the opponent baseline played *against the player*, so interactive features
 (trades, game length) are partly shared. These features are flagged in output. Upgrade path:
@@ -109,7 +110,8 @@ same thing at 1800 and at GM level.
 
 ## 7. Validation (notebook `02_validation.ipynb`)
 
-1. **GM identification:** per GM, profile from earliest 70% of games (time split, not random);
+1. **GM identification:** per GM, profile from earliest 50% of games (time split, not random;
+   50% so a 200-game GM still yields one 100-game test chunk);
    test on chunks of 25 / 50 / 100 later games. Report top-1 and top-5 accuracy vs chance
    (2% / 10% at 50 GMs).
 2. **Opening ablation:** same test without opening adjustment.
@@ -142,10 +144,11 @@ chess-style/
 │   ├── features.py           # game + side → feature dict; sacrifice check
 │   ├── profile.py            # opening families, bands, adjustment, z-scores, player vector
 │   └── match.py              # cosine, explanations, bootstrap, reading list
-├── scripts/build_gm_pool.py  # one-off GM pool → data/gm_profiles.csv
+├── scripts/build_gm_pool.py  # one-off GM pool → data/gm_games.csv
+├── scripts/py2nb.py          # percent-format .py → .ipynb
 ├── notebooks/01_my_style.ipynb, 02_validation.ipynb
 ├── tests/test_features.py, test_profile.py, test_match.py
-└── data/                     # gitignored except gm_profiles.csv
+└── data/                     # gitignored except gm_games.csv
 ```
 
 Plain functions, no classes/config/DB/CLI. Stockfish via `chess.engine` with `STOCKFISH_PATH`
@@ -157,7 +160,8 @@ env var. GM pool and user go through the same functions.
   parsing, sound sacrifice vs hung queen — engine tests skip if `STOCKFISH_PATH` unset).
 - `test_profile.py`: after opening adjustment, family means = 0; after z-scoring, std = 1.
 - `test_match.py`: identical vectors → similarity 1; self is top match.
-- `fetch.py` is not unit-tested (thin network wrapper); verified by running on a real account.
+- `test_fetch.py`: game filtering, month caching and unknown-user error, with the API call faked
+  (no network in tests); real API verified by running on a real account.
 
 **Done for v1:** `pytest` green, `01_my_style.ipynb` runs end-to-end for the author's username,
 validation results written into the README whatever they are.
