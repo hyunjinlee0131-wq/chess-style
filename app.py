@@ -77,7 +77,7 @@ if st.runtime.exists():
     st.subheader("Style profile")
     st.caption("σ = standard deviations from players at your rating; 0 = typical.")
     st.bar_chart(r["groups"], horizontal=True)
-    rows = [(g, f, round(r["features"][f], 2), "both players shape this" if f in profile.INTERACTIVE else "")
+    rows = [(g, f, "unavailable" if pd.isna(r["features"][f]) else round(r["features"][f], 2), "both players shape this" if f in profile.INTERACTIVE else "")
             for g, fs in profile.GROUPS.items() for f in fs]
     st.dataframe(pd.DataFrame(rows, columns=["group", "feature", "σ", "note"]), hide_index=True)
 

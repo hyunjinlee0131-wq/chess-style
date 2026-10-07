@@ -80,9 +80,11 @@ def test_features_table_rows_and_skips():
 
 def test_open_engine_falls_back_to_path(monkeypatch):
     monkeypatch.delenv("STOCKFISH_PATH", raising=False)
-    monkeypatch.setattr(features.shutil, "which", lambda name, path=None: "/usr/games/stockfish")
+    seen = []
+    monkeypatch.setattr(features.shutil, "which", lambda name, path=None: seen.append(path) or "/usr/games/stockfish")
     monkeypatch.setattr(features.chess.engine.SimpleEngine, "popen_uci", lambda p: ("engine", p))
     assert features.open_engine() == ("engine", "/usr/games/stockfish")
+    assert any("/usr/games" in (p or "") for p in seen)
 
 
 def test_open_engine_none_without_stockfish(monkeypatch):

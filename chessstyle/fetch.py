@@ -1,5 +1,6 @@
 """chess.com Published-Data API: game archives with an on-disk cache."""
 import json
+import re
 import time
 import urllib.error
 import urllib.request
@@ -29,6 +30,8 @@ def get_json(url, tries=5):
 def games(username, time_class="rapid", cache=DATA / "raw", limit=None):
     """Rated standard-chess games of `time_class`. Past months are read from cache; the current month is refetched.
     With `limit`, months are read newest-first until `limit` games are found; returns the newest `limit`, oldest first."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]{3,25}", username):
+        raise ValueError(f"'{username}' is not a valid chess.com username")
     u = username.lower()
     try:
         months = get_json(f"{API}/player/{u}/games/archives")["archives"]
