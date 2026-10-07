@@ -89,15 +89,18 @@ if st.runtime.exists():
     st.set_page_config(page_title="Which GM plays like you?", page_icon="♞", layout="centered")
     st.markdown(f"<style>{(Path(__file__).parent / 'style.css').read_text(encoding='utf-8')}</style>",
                 unsafe_allow_html=True)
-    n_gms = len(gm_profiles()[1])
+    n_gms = len(gm_profiles("rapid")[1])
     st.markdown(
         '<div class="cs-hero"><div class="glyph">♞</div><h1>Which grandmaster plays like you?</h1>'
-        f"<p>We read your last {N_GAMES} rated rapid games on chess.com, compare your habits with players at your "
+        f"<p>We read your last {N_GAMES} rated rapid or blitz games on chess.com, compare your habits with players at your "
         f"rating, and find which of {n_gms} grandmasters and chess personalities play most like you.</p></div>",
         unsafe_allow_html=True)
 
     with st.form("lookup"):
         username = st.text_input("Your chess.com username", placeholder="e.g. hikaru").strip().lower()
+        options = [tc.capitalize() for tc in POOLS]
+        picked = st.segmented_control("Time control", options, default="Rapid") if len(options) > 1 else "Rapid"
+        time_class = (picked or "Rapid").lower()
         left, right = st.columns(2)
         go = left.form_submit_button("Find my grandmaster", type="primary", width="stretch")
         example = right.form_submit_button(f"Try an example ({EXAMPLE})", width="stretch")
@@ -107,8 +110,8 @@ if st.runtime.exists():
         st.stop()
 
     try:
-        with st.spinner(f"Reading {username}'s recent games and comparing habits... (about 20 seconds)"):
-            r = analyse(username)
+        with st.spinner(f"Reading {username}'s recent {time_class} games and comparing habits... (about 20 seconds)"):
+            r = analyse(username, time_class)
     except ValueError as e:
         st.error(str(e))
         st.stop()
@@ -127,14 +130,15 @@ if st.runtime.exists():
         for c in cards:
             html(present.trait_card_html(c))
 
+    html(present.section_html("♔", "How well you play", f"compared with players at your rating, in {time_class}"))
+    for col, q in zip(st.columns(3), r["quality"]):
+        with col:
+            html(present.quality_card_html(q))
+
     html(present.section_html("♟", "Your openings", "your most played"))
     for col, o in zip(st.columns(3), r["openings"]):
         with col:
             html(present.opening_html(o))
-    you, peers = r["blunders"]
-    if not pd.isna(you):
-        html(f'<div class="cs-card">You lose material by mistake <b>{present.blunder_words(you, peers)}</b> players '
-             f"at your rating ({you:.2f} vs {peers:.2f} times per game).</div>")
 
     html(present.section_html("♛", "Your closest players", "grandmasters and chess personalities"))
     top, *rest = r["matches"]
@@ -156,17 +160,26 @@ if st.runtime.exists():
                    "openings you play, so it can differ slightly from the raw averages.")
         st.dataframe(present.numbers_table(r), hide_index=True, width="stretch")
     with st.expander("How does this work?"):
+        steps = [
+            f"Each of your games becomes {len(profile.FEATURES)} habits: how often you check and capture, when you castle, "
+            f"when queens come off, how you spend your clock, and so on.",
+            "Those habits are compared with your opponents at the same rating, allowing for the openings you "
+            "play, so the result describes style rather than strength or repertoire.",
+            f"The same is done for {n_gms} grandmasters and chess personalities; the closest ones share the most "
+            f"habits with you.",
+            "To show how sure the match is, your games are reshuffled and re-checked 1,000 times. "
+            "The 'likely between' range and 'stays in your top 3' come from that.",
+        ]
+        if len(POOLS) > 1:
+            steps.insert(0, "Pick Rapid or Blitz: your games are only compared with grandmaster games of the same "
+                            "speed, because time pressure changes habits.")
         st.markdown(
-            f"1. Each of your games becomes {len(profile.FEATURES)} habits: how often you check and capture, when you castle, "
-            f"when queens come off, how you spend your clock, and so on.\n"
-            f"2. Those habits are compared with your opponents at the same rating, allowing for the openings you "
-            f"play, so the result describes style rather than strength or repertoire.\n"
-            f"3. The same is done for {n_gms} grandmasters and chess personalities; the closest ones share the most "
-            f"habits with you.\n"
-            f"4. To show how sure the match is, your games are reshuffled and re-checked 1,000 times. "
-            f"The 'likely between' range and 'stays in your top 3' come from that.\n\n"
-            f"Tested on grandmasters themselves: given 100 of a grandmaster's games, the method puts the right one in "
-            f"its top 5 44% of the time (picking at random would manage 10%).")
+            "\n".join(f"{i}. {t}" for i, t in enumerate(steps, 1)) + "\n\n"
+            "Tested on grandmasters themselves: given 100 of a grandmaster's games, the method puts the right one in "
+            "its top 5 44% of the time (picking at random would manage 10%).\n\n"
+            "**How well you play** compares your accuracy (from chess.com game review), material blunders and time "
+            "trouble with your opponents in the same games: Bad, Weak, Average, Good or Excellent for your rating. "
+            "Your style, above, is never rated good or bad — it only says how distinctive it is.")
 
-    html(f'<p class="cs-muted" style="text-align:center;margin-top:2rem">Based on {r["games"]} recent games, '
+    html(f'<p class="cs-muted" style="text-align:center;margin-top:2rem">Based on {r["games"]} recent {time_class} games, '
          f'rating {r["ratings"][0]}–{r["ratings"][1]}.</p>')
