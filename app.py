@@ -9,7 +9,7 @@ import present
 from chessstyle import features, fetch, match, profile
 
 N_GAMES = 300
-EXAMPLE = "tanit0131"
+EXAMPLE = "ssgssg2"
 
 
 @st.cache_resource
