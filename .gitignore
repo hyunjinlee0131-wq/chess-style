@@ -3,4 +3,6 @@ __pycache__/
 .ipynb_checkpoints/
 data/*
 !data/gm_games.csv
+!data/gm_info.csv
+!data/gm_results.csv
 Tools/
