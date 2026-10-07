@@ -61,15 +61,46 @@ OPENINGS = {
     "d4-other": ("Other replies to 1.d4", "1.d4"), "english": ("English Opening", "1.c4"),
     "reti": ("Réti Opening", "1.Nf3"), "other": ("Other openings", ""),
 }
-LEVELS = ["typical", "stands out a little", "stands out a lot"]
-SUMMARY = ["About typical for your rating", "Stands out a little from players at your rating",
-           "Stands out a lot from players at your rating"]
+LEVELS = ["typical", "slightly distinctive", "clearly distinctive", "strongly distinctive", "very strongly distinctive"]
+SHORT = ["typical", "slightly", "clearly", "strongly", "very strongly"]
+LEVEL_CUTS = [0.15, 0.30, 0.45, 0.80]
+SUMMARY = ["About typical for your rating", "Slightly distinctive", "Clearly distinctive", "Strongly distinctive",
+           "Very strongly distinctive"]
+QUALITY = ["Bad", "Weak", "Average", "Good", "Excellent"]
+QUALITY_CUTS = [-0.3, -0.1, 0.1, 0.3]
+QUALITY_MEASURES = [("accuracy", "Accuracy (chess.com game review)", True),
+                    ("material_blunders", "Material blunders per game", False),
+                    ("time_trouble", "Games in time trouble", False)]
+MIN_REVIEWED = 20
 RESULT = {"win": "Won", "loss": "Lost", "draw": "Draw"}
 THAN = " than most players at your rating"
 
 
 def _missing(x):
     return x is None or (isinstance(x, float) and math.isnan(x))
+
+
+def style_level(top):
+    """Strongest habit size in an area -> 0 (typical) … 4 (very strongly distinctive); None without data."""
+    return None if _missing(top) else sum(top >= c for c in LEVEL_CUTS)
+
+
+def quality_level(score):
+    """Better-than-peers score -> 0 (Bad) … 4 (Excellent); None without data."""
+    return None if _missing(score) else sum(score >= c for c in QUALITY_CUTS)
+
+
+def quality_rows(mine, peers):
+    """Player's current games vs opponents in the same games, for measures where better is unambiguous."""
+    rows = []
+    for col, label, higher_better in QUALITY_MEASURES:
+        y = mine[col].dropna() if col in mine else pd.Series(dtype=float)
+        p = peers[col].dropna() if col in peers else pd.Series(dtype=float)
+        enough = len(y) >= (MIN_REVIEWED if col == "accuracy" else 1) and len(p) >= 2 and p.std() > 0
+        score = (y.mean() - p.mean()) / p.std() * (1 if higher_better else -1) if enough else float("nan")
+        rows.append({"measure": col, "label": label, "you": y.mean() if enough else float("nan"),
+                     "peers": p.mean() if enough else float("nan"), "n": len(y), "level": quality_level(score)})
+    return rows
 
 
 def scale_step(z):
@@ -92,12 +123,12 @@ def habit(feature, z):
 
 
 def trait_cards(groups, vec):
-    """One card per style group: label, glyph, how much it stands out (0-2, None = no data), summary, up to 3 habits."""
+    """One card per style group: label, glyph, how distinctive it is (0-4, None = no data), summary, up to 3 habits."""
     cards = []
     for g, fs in profile.GROUPS.items():
         have = [f for f in fs if not _missing(vec[f])]
         top = max((abs(vec[f]) for f in have), default=None)
-        level = None if top is None else 0 if top < 0.15 else 1 if top < 0.45 else 2
+        level = style_level(top)
         strong = sorted((f for f in have if abs(vec[f]) >= 0.15), key=lambda f: -abs(vec[f]))
         cards.append({"group": g, "label": LABELS[g], "glyph": GLYPHS[g], "level": level,
                       "summary": "Not enough data" if level is None else SUMMARY[level],
@@ -189,16 +220,33 @@ def section_html(glyph, title, sub=""):
             f'<span class="sub">{esc(sub)}</span></div>')
 
 
-def _scale_html(level):
-    cells = "".join(f'<div class="{"on" if i == level else ""}"></div>' for i in range(3))
-    labels = "".join(f"<span>{s}</span>" for s in LEVELS)
-    return f'<div class="cs-scale">{cells}</div><div class="cs-scale-labels">{labels}</div>'
+def _scale_html(level, labels=SHORT):
+    cells = "".join(f'<div class="{"on" if i == level else ""}"></div>' for i in range(len(labels)))
+    spans = "".join(f"<span>{s}</span>" for s in labels)
+    return f'<div class="cs-scale">{cells}</div><div class="cs-scale-labels">{spans}</div>'
 
 
 def trait_card_html(c):
     habits = "".join(f"<li>{esc(h)}</li>" for h in c["habits"])
     return (f'<div class="cs-card"><h4>{c["glyph"]} {esc(c["label"])}</h4>{_scale_html(c["level"])}'
             f'<div class="summary">{esc(c["summary"])}</div>' + (f"<ul>{habits}</ul>" if habits else "") + "</div>")
+
+
+UNITS = {"accuracy": lambda x: f"{x:.1f}%", "material_blunders": lambda x: f"{x:.2f} per game",
+         "time_trouble": lambda x: f"{x:.0%} of games"}
+
+
+def quality_card_html(q):
+    head = f'<div class="cs-card cs-quality"><h4>{esc(q["label"])}'
+    if q["level"] is None:
+        why = ("review more of your games on chess.com to see this" if q["measure"] == "accuracy"
+               else "not enough games to compare")
+        return f'{head}</h4><div class="cs-muted">Not available — {why}.</div></div>'
+    fmt = UNITS[q["measure"]]
+    note = f' · based on {q["n"]} reviewed games' if q["measure"] == "accuracy" else ""
+    return (f'{head} <span class="cs-badge cs-q{q["level"]}">{QUALITY[q["level"]]}</span></h4>'
+            f'{_scale_html(q["level"], QUALITY)}'
+            f'<div class="cs-muted">You {fmt(q["you"])} · players at your rating {fmt(q["peers"])}{note}</div></div>')
 
 
 def photo_html(m):
@@ -273,7 +321,7 @@ def numbers_table(r):
 
 
 def radar(cards):
-    """Five style groups: how much each stands out (centre = typical)."""
+    """Five style groups: how distinctive each area is (centre = typical)."""
     labels = [c["label"] for c in cards]
     vals = [0 if c["level"] is None else c["level"] for c in cards]
     ang = np.linspace(0, 2 * np.pi, len(cards), endpoint=False).tolist()
@@ -284,8 +332,8 @@ def radar(cards):
     ax.set_facecolor("#fbf7ef")
     ax.plot(loop(ang), loop(vals), color="#5b3a21", lw=2.2)
     ax.fill(loop(ang), loop(vals), color="#8b5a2b", alpha=0.25)
-    ax.set_ylim(0, 2)
-    ax.set_yticks([0, 1, 2], LEVELS, color="#7a6552", fontsize=7)
+    ax.set_ylim(0, 4)
+    ax.set_yticks([0, 1, 2, 3, 4], SHORT, color="#7a6552", fontsize=7)
     ax.set_xticks(ang, labels, fontfamily="serif", color="#2b1d12", fontsize=10)
     ax.spines["polar"].set_color("#b58863")
     ax.grid(color="#e3d5bd")

@@ -12,11 +12,15 @@ N_GAMES = 300
 EXAMPLE = "ssgssg2"
 
 
+POOLS = {"rapid": ("gm_games.csv", "gm_results.csv"), "blitz": ("gm_blitz.csv", "gm_blitz_results.csv")}
+
+
 @st.cache_resource
-def gm_profiles():
-    """GM games (with opponent and result), GM style vectors, GM profile details indexed by username."""
-    gm = pd.read_csv(fetch.DATA / "gm_games.csv").merge(
-        pd.read_csv(fetch.DATA / "gm_results.csv", keep_default_na=False), on=["game", "username"], how="left")
+def gm_profiles(time_class="rapid"):
+    """GM games (with opponent and result), GM style vectors, GM profile details — for one time control."""
+    games, results = POOLS[time_class]
+    gm = pd.read_csv(fetch.DATA / games).merge(
+        pd.read_csv(fetch.DATA / results, keep_default_na=False), on=["game", "username"], how="left")
     info = pd.read_csv(fetch.DATA / "gm_info.csv", keep_default_na=False).set_index("username")
     return gm, profile.vectors(profile.normalise(gm, gm.username.notna())), info
 
@@ -43,10 +47,10 @@ def gm_card(u, r, vec, P, gm, info):
             "country": d.get("country", ""), "openings": top_openings(gm[gm.username == u])}
 
 
-def report(table, gm, P, info):
+def report(table, gm, P, info, time_class="rapid"):
     """Features table -> everything the page shows. ValueError if there are too few games."""
     if table.empty or not (table.who == "player").any():
-        raise ValueError("no rated rapid games with 10+ moves found")
+        raise ValueError(f"no rated {time_class} games with 10+ moves found")
     z, cur = profile.player_frame(table)
     me, mine = z[cur], table[cur]
     vec = me[profile.FEATURES].mean()
@@ -62,22 +66,23 @@ def report(table, gm, P, info):
         "peer_raw": peers[profile.FEATURES].mean(),
         "openings": top_openings(mine),
         "blunders": (mine.material_blunders.mean(), peers.material_blunders.mean()),
+        "quality": present.quality_rows(mine, peers),
         "matches": [gm_card(u, r, vec, P, gm, info) for u, r in boot.iterrows()],
         "reading": reading_rows(gm, boot.index[0], fams),
     }
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def analyse(username):
-    games = fetch.games(username, limit=N_GAMES)
+def analyse(username, time_class="rapid"):
+    games = fetch.games(username, time_class, limit=N_GAMES)
     engine = features.open_engine()
     try:
         table = features.features_table(games, username, engine)
     finally:
         if engine:
             engine.quit()
-    gm, P, info = gm_profiles()
-    return report(table, gm, P, info)
+    gm, P, info = gm_profiles(time_class)
+    return report(table, gm, P, info, time_class)
 
 
 if st.runtime.exists():

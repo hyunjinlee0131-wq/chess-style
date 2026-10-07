@@ -20,7 +20,8 @@ def test_report_has_everything_the_page_shows():
     gm, P, info = app.gm_profiles()
     r = app.report(fake_table(), gm, P, info)
     assert set(r) == {"games", "ratings", "groups", "features", "raw", "peer_raw", "openings", "blunders",
-                      "matches", "reading"}
+                      "matches", "reading", "quality"}
+    assert [q["measure"] for q in r["quality"]] == ["accuracy", "material_blunders", "time_trouble"]
     assert list(r["groups"].index) == list(profile.GROUPS)
     assert len(r["matches"]) == 4
     assert [m["sim"] for m in r["matches"]] == sorted((m["sim"] for m in r["matches"]), reverse=True)
@@ -56,3 +57,15 @@ def test_gm_results_are_merged():
     gm, _, _ = app.gm_profiles()
     assert {"opponent", "result"} <= set(gm.columns)
     assert gm.result.notna().mean() > 0.95
+
+
+def test_report_empty_table_names_time_class():
+    gm, P, info = app.gm_profiles()
+    with pytest.raises(ValueError, match="no rated blitz games"):
+        app.report(pd.DataFrame(), gm, P, info, time_class="blitz")
+
+
+@pytest.mark.parametrize("tc", list(app.POOLS))
+def test_every_pool_loads(tc):
+    gm, P, info = app.gm_profiles(tc)
+    assert len(P) >= 30 and {"opponent", "result"} <= set(gm.columns)

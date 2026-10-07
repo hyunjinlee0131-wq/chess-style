@@ -30,8 +30,8 @@ def test_trait_cards():
     cards = present.trait_cards(groups, vec)
     assert [c["group"] for c in cards] == list(profile.GROUPS)
     clock = cards[-1]
-    assert clock["label"] == "Clock use" and clock["level"] == 2 and clock["glyph"] == present.GLYPHS["Time use"]
-    assert clock["summary"] == "Stands out a lot from players at your rating"
+    assert clock["label"] == "Clock use" and clock["level"] == 4 and clock["glyph"] == present.GLYPHS["Time use"]
+    assert clock["summary"] == "Very strongly distinctive"
     assert len(clock["habits"]) == 3 and clock["habits"][0].startswith("You spend more of your clock in the middlegame")
     assert cards[0]["habits"] == [] and cards[0]["level"] == 0 and cards[0]["summary"] == "About typical for your rating"
 
@@ -40,7 +40,7 @@ def test_trait_levels():
     vec = pd.Series(0.0, index=profile.FEATURES)
     vec["checks"] = 0.3
     cards = present.trait_cards(None, vec)
-    assert cards[0]["level"] == 1 and cards[0]["summary"] == "Stands out a little from players at your rating"
+    assert cards[0]["level"] == 2 and cards[0]["summary"] == "Clearly distinctive"
     assert cards[1]["level"] == 0
 
 
@@ -143,7 +143,7 @@ def test_opening_html_without_board():
 
 
 def test_trait_card_html_marks_the_level():
-    card = {"group": "Time use", "label": "Clock use", "glyph": "♜", "level": 2, "summary": "Much more than most",
+    card = {"group": "Time use", "label": "Clock use", "glyph": "♜", "level": 4, "summary": "Much more than most",
             "habits": ["You get into time trouble more often than most players at your rating."]}
     html = present.trait_card_html(card)
     assert html.count('class="on"') == 1 and "Clock use" in html and "<li>" in html
@@ -168,3 +168,54 @@ def test_radar_returns_a_figure():
     cards = present.trait_cards(pd.Series({g: 0.3 for g in profile.GROUPS}), VEC)
     fig = present.radar(cards)
     assert fig.axes and fig.axes[0].name == "polar"
+
+
+@pytest.mark.parametrize("top,level", [(0.1, 0), (0.15, 1), (0.29, 1), (0.3, 2), (0.449, 2), (0.45, 3),
+                                       (0.79, 3), (0.8, 4), (2.0, 4), (float("nan"), None), (None, None)])
+def test_style_level(top, level):
+    assert present.style_level(top) == level
+
+
+@pytest.mark.parametrize("score,level", [(-1, 0), (-0.31, 0), (-0.3, 1), (-0.11, 1), (-0.1, 2), (0.09, 2),
+                                         (0.1, 3), (0.29, 3), (0.3, 4), (float("nan"), None)])
+def test_quality_level(score, level):
+    assert present.quality_level(score) == level
+
+
+def test_quality_rows():
+    mine = pd.DataFrame({"accuracy": [80.0] * 25, "material_blunders": [0.0] * 25, "time_trouble": [1] * 25})
+    peers = pd.DataFrame({"accuracy": [70.0, 80.0] * 15, "material_blunders": [0, 1] * 15, "time_trouble": [0, 1] * 15})
+    q = {r["measure"]: r for r in present.quality_rows(mine, peers)}
+    assert [r["measure"] for r in present.quality_rows(mine, peers)] == ["accuracy", "material_blunders", "time_trouble"]
+    assert q["accuracy"]["level"] == 4 and q["accuracy"]["n"] == 25 and q["accuracy"]["you"] == 80.0
+    assert q["material_blunders"]["level"] == 4   # fewer blunders than peers is better
+    assert q["time_trouble"]["level"] == 0        # always in time trouble is worse
+    few = {r["measure"]: r for r in present.quality_rows(mine.head(5), peers)}
+    assert few["accuracy"]["level"] is None and few["accuracy"]["n"] == 5
+    assert few["material_blunders"]["level"] == 4
+
+
+def test_quality_rows_without_accuracy_column():
+    mine = pd.DataFrame({"material_blunders": [0.0] * 5, "time_trouble": [0] * 5})
+    peers = pd.DataFrame({"material_blunders": [0, 1] * 5, "time_trouble": [0, 1] * 5})
+    rows = present.quality_rows(mine, peers)
+    assert rows[0]["measure"] == "accuracy" and rows[0]["level"] is None
+
+
+def test_quality_rows_zero_spread():
+    mine = pd.DataFrame({"accuracy": [80.0] * 25, "material_blunders": [0.0] * 25, "time_trouble": [0] * 25})
+    peers = pd.DataFrame({"accuracy": [75.0] * 30, "material_blunders": [0.0] * 30, "time_trouble": [0] * 30})
+    assert all(r["level"] is None for r in present.quality_rows(mine, peers))
+
+
+def test_quality_card_html():
+    q = {"measure": "accuracy", "label": "Accuracy <x>", "you": 80.0, "peers": 75.0, "n": 25, "level": 4}
+    html = present.quality_card_html(q)
+    assert "Excellent" in html and "80.0%" in html and "75.0%" in html and "based on 25 reviewed games" in html
+    assert "&lt;x&gt;" in html and html.count('class="on"') == 1
+    tt = present.quality_card_html({"measure": "time_trouble", "label": "Games in time trouble", "you": 0.4,
+                                    "peers": 0.25, "n": 300, "level": 1})
+    assert "40% of games" in tt and "Weak" in tt and "reviewed" not in tt
+    na = present.quality_card_html({"measure": "accuracy", "label": "Accuracy", "you": float("nan"),
+                                    "peers": float("nan"), "n": 3, "level": None})
+    assert "Not available" in na and "review more" in na and 'class="on"' not in na
