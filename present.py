@@ -8,14 +8,14 @@ import chess.svg
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 import numpy as np
 import pandas as pd
 
 from chessstyle import profile
 
 SCALE = ["much less", "a bit less", "typical", "a bit more", "much more"]
-LABELS = {"Aggression": "Aggression", "King play": "King safety", "Simplification": "Simplifying",
+LABELS = {"Aggression": "Aggression", "King play": "King play", "Simplification": "Simplifying",
           "Piece preference": "Piece choices", "Time use": "Clock use"}
 GLYPHS = {"Aggression": "♞", "King play": "♚", "Simplification": "♛", "Piece preference": "♝", "Time use": "♜"}
 PHRASES = {
@@ -35,7 +35,7 @@ PHRASES = {
     "game_len": ("play longer games", "play shorter games"),
     "bishop_takes_knight": ("swap bishops for knights more often", "swap bishops for knights less often"),
     "bishop_pair_kept": ("keep both bishops more often", "keep both bishops less often"),
-    "pawn_share": ("move pawns more", "move pawns less"),
+    "pawn_share": ("make more pawn moves", "make fewer pawn moves"),
     "time_open": ("spend more of your clock in the opening", "spend less of your clock in the opening"),
     "time_mid": ("spend more of your clock in the middlegame", "spend less of your clock in the middlegame"),
     "time_end": ("spend more of your clock in the endgame", "spend less of your clock in the endgame"),
@@ -59,8 +59,11 @@ OPENINGS = {
     "scandinavian": ("Scandinavian Defence", "1.e4 d5"), "e4-other": ("Other replies to 1.e4", "1.e4"),
     "closed": ("Closed Game", "1.d4 d5"), "indian": ("Indian Defence", "1.d4 Nf6"),
     "d4-other": ("Other replies to 1.d4", "1.d4"), "english": ("English Opening", "1.c4"),
-    "reti": ("Réti Opening", "1.Nf3"), "other": ("Other first moves", ""),
+    "reti": ("Réti Opening", "1.Nf3"), "other": ("Other openings", ""),
 }
+LEVELS = ["typical", "stands out a little", "stands out a lot"]
+SUMMARY = ["About typical for your rating", "Stands out a little from players at your rating",
+           "Stands out a lot from players at your rating"]
 RESULT = {"win": "Won", "loss": "Lost", "draw": "Draw"}
 THAN = " than most players at your rating"
 
@@ -85,18 +88,19 @@ def _phrase(feature, z):
 
 def habit(feature, z):
     note = " (your opponents affect this too)" if feature in profile.INTERACTIVE else ""
-    return f"You {_phrase(feature, z)}{THAN}.{note}"
+    return f"You {_phrase(feature, z)}{THAN}{note}."
 
 
 def trait_cards(groups, vec):
-    """One card per style group: label, glyph, scale step, summary sentence, up to 3 distinctive habits."""
+    """One card per style group: label, glyph, how much it stands out (0-2, None = no data), summary, up to 3 habits."""
     cards = []
     for g, fs in profile.GROUPS.items():
-        step = scale_step(groups[g])
-        summary = ("Not enough data" if step is None else "About typical for your rating" if step == 2
-                   else SCALE[step].capitalize() + THAN)
-        strong = sorted((f for f in fs if not _missing(vec[f]) and abs(vec[f]) >= 0.15), key=lambda f: -abs(vec[f]))
-        cards.append({"group": g, "label": LABELS[g], "glyph": GLYPHS[g], "step": step, "summary": summary,
+        have = [f for f in fs if not _missing(vec[f])]
+        top = max((abs(vec[f]) for f in have), default=None)
+        level = None if top is None else 0 if top < 0.15 else 1 if top < 0.45 else 2
+        strong = sorted((f for f in have if abs(vec[f]) >= 0.15), key=lambda f: -abs(vec[f]))
+        cards.append({"group": g, "label": LABELS[g], "glyph": GLYPHS[g], "level": level,
+                      "summary": "Not enough data" if level is None else SUMMARY[level],
                       "habits": [habit(f, vec[f]) for f in strong[:3]]})
     return cards
 
@@ -106,8 +110,9 @@ def _pct(x):
 
 
 def match_words(m):
-    return {"pct": f"{_pct(m['sim'])}% style match", "range": f"likely {_pct(m['lo'])}–{_pct(m['hi'])}%",
-            "top3": f"in the top 3 in {round(m['p_top'] * 10)} of 10 reshuffles of your games"}
+    k = round(m["p_top"] * 10)
+    return {"pct": f"{_pct(m['sim'])}% style match", "range": f"(likely between {_pct(m['lo'])}% and {_pct(m['hi'])}%)",
+            "top3": f"stays in your top 3 in {k} of 10 re-checks" if k else "rarely in your top 3"}
 
 
 def _join(parts):
@@ -119,10 +124,27 @@ def shared_sentence(features, vec):
     return "you both " + _join(parts) if parts else ""
 
 
-def differs_sentence(feature, vec):
+def _both(vec, gm):
+    return [f for f in vec.index if f in gm and not _missing(vec[f]) and not _missing(gm[f])
+            and abs(vec[f]) >= 0.15 and abs(gm[f]) >= 0.15]
+
+
+def shared_features(vec, gm, k=3):
+    """Features where you and the player both stand out in the same direction, strongest agreement first."""
+    same = [f for f in _both(vec, gm) if vec[f] * gm[f] > 0]
+    return sorted(same, key=lambda f: -vec[f] * gm[f])[:k]
+
+
+def differs_feature(vec, gm):
+    """The feature where you stand out in opposite directions most, or None."""
+    opp = [f for f in _both(vec, gm) if vec[f] * gm[f] < 0]
+    return min(opp, key=lambda f: vec[f] * gm[f], default=None)
+
+
+def differs_sentence(feature, vec, name="they"):
     if feature is None or feature not in vec or _missing(vec[feature]):
         return ""
-    return f"you {_phrase(feature, vec[feature])}; they tend the other way"
+    return f"you {_phrase(feature, vec[feature])}; {name} does the opposite"
 
 
 def blunder_words(you, peers):
@@ -167,15 +189,15 @@ def section_html(glyph, title, sub=""):
             f'<span class="sub">{esc(sub)}</span></div>')
 
 
-def _scale_html(step):
-    cells = "".join(f'<div class="{"on" if i == step else ""}"></div>' for i in range(5))
-    labels = "".join(f"<span>{s}</span>" for s in SCALE)
+def _scale_html(level):
+    cells = "".join(f'<div class="{"on" if i == level else ""}"></div>' for i in range(3))
+    labels = "".join(f"<span>{s}</span>" for s in LEVELS)
     return f'<div class="cs-scale">{cells}</div><div class="cs-scale-labels">{labels}</div>'
 
 
 def trait_card_html(c):
     habits = "".join(f"<li>{esc(h)}</li>" for h in c["habits"])
-    return (f'<div class="cs-card"><h4>{c["glyph"]} {esc(c["label"])}</h4>{_scale_html(c["step"])}'
+    return (f'<div class="cs-card"><h4>{c["glyph"]} {esc(c["label"])}</h4>{_scale_html(c["level"])}'
             f'<div class="summary">{esc(c["summary"])}</div>' + (f"<ul>{habits}</ul>" if habits else "") + "</div>")
 
 
@@ -192,7 +214,8 @@ def _title(m):
 def gm_hero_html(m, vec):
     w = match_words(m)
     ops = ", ".join(f'{opening_name(o["family"])} as {o["side"]} ({o["share"]:.0%})' for o in m["openings"])
-    shared, differs = shared_sentence(m["shared"], vec), differs_sentence(m["differs"], vec)
+    shared = shared_sentence(shared_features(vec, m["gm_features"]), vec)
+    differs = differs_sentence(differs_feature(vec, m["gm_features"]), vec, m["name"])
     return (f'<div class="cs-card cs-gm">{photo_html(m)}<div>'
             f'<p class="name">{_title(m)}{esc(m["name"])} {flag(m["country"])}</p>'
             f'<div><span class="cs-pct">{w["pct"]}</span> <span class="cs-muted">{w["range"]} · {w["top3"]}</span></div>'
@@ -203,9 +226,9 @@ def gm_hero_html(m, vec):
               f'View {esc(m["name"])} on chess.com →</a></p></div></div>')
 
 
-def gm_small_html(m, vec, rank):
+def gm_small_html(m, vec, rank, feature):
     w = match_words(m)
-    because = shared_sentence(m["shared"][:1], vec)
+    because = shared_sentence([feature] if feature else [], vec)
     return (f'<div class="cs-card cs-small">{photo_html(m)}<div class="cs-muted">#{rank}</div>'
             f'<h4>{_title(m)}{esc(m["name"])} {flag(m["country"])}</h4>'
             f'<div class="cs-pct cs-pct-small">{w["pct"]}</div>'
@@ -226,12 +249,16 @@ def reading_table_html(rows):
         f'<span class="cs-muted">as {esc(r["side"])}</span></td><td>{esc(r["opponent"])}</td>'
         f'<td class="cs-{esc(r["result"] or "draw")}">{RESULT.get(r["result"], "—")}</td>'
         f'<td><a href="{esc(r["url"])}" target="_blank">Open game →</a></td></tr>' for r in rows)
-    return ('<table class="cs-table"><tr><th>Date</th><th>Opening</th><th>Opponent</th><th>Result</th><th></th></tr>'
-            f"{body}</table>")
+    return ('<div class="cs-table-wrap"><table class="cs-table"><tr><th>Date</th><th>Opening</th><th>Opponent</th><th>Result</th><th></th></tr>'
+            f"{body}</table></div>")
 
 
-def _num(x):
-    return "—" if _missing(x) else f"{x:.2f}"
+PERCENT = {"early_queen", "castled", "castle_long", "opposite_castle", "queen_trade", "endgame",
+           "bishop_pair_kept", "pawn_share", "time_open", "time_mid", "time_end", "time_trouble"}
+
+
+def _num(x, f):
+    return "—" if _missing(x) else f"{x:.0%}" if f in PERCENT else f"{x:.2f}"
 
 
 def numbers_table(r):
@@ -239,26 +266,26 @@ def numbers_table(r):
     for g, fs in profile.GROUPS.items():
         for f in fs:
             s = scale_step(r["features"][f])
-            rows.append({"Area": LABELS[g], "Habit": FEATURE_NAMES[f], "You": _num(r["raw"][f]),
-                         "Players at your rating": _num(r["peer_raw"][f]),
+            rows.append({"Area": LABELS[g], "Habit": FEATURE_NAMES[f], "You": _num(r["raw"][f], f),
+                         "Players at your rating": _num(r["peer_raw"][f], f),
                          "Compared with them": "not available" if s is None else SCALE[s]})
     return pd.DataFrame(rows)
 
 
 def radar(cards):
-    """Five style groups on the 5-step scale; dashed ring = typical."""
+    """Five style groups: how much each stands out (centre = typical)."""
     labels = [c["label"] for c in cards]
-    vals = [2 if c["step"] is None else c["step"] for c in cards]
+    vals = [0 if c["level"] is None else c["level"] for c in cards]
     ang = np.linspace(0, 2 * np.pi, len(cards), endpoint=False).tolist()
     loop = lambda xs: xs + xs[:1]
-    fig, ax = plt.subplots(figsize=(4.2, 4.2), subplot_kw={"polar": True})
+    fig = Figure(figsize=(4.2, 4.2))  # not pyplot: nothing stays registered between lookups
+    ax = fig.add_subplot(polar=True)
     fig.patch.set_facecolor("#f6efe2")
     ax.set_facecolor("#fbf7ef")
-    ax.plot(loop(ang), [2] * (len(ang) + 1), color="#b58863", lw=1, ls="--")
     ax.plot(loop(ang), loop(vals), color="#5b3a21", lw=2.2)
     ax.fill(loop(ang), loop(vals), color="#8b5a2b", alpha=0.25)
-    ax.set_ylim(0, 4)
-    ax.set_yticks([0, 2, 4], ["much less", "typical", "much more"], color="#7a6552", fontsize=7)
+    ax.set_ylim(0, 2)
+    ax.set_yticks([0, 1, 2], LEVELS, color="#7a6552", fontsize=7)
     ax.set_xticks(ang, labels, fontfamily="serif", color="#2b1d12", fontsize=10)
     ax.spines["polar"].set_color("#b58863")
     ax.grid(color="#e3d5bd")

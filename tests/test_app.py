@@ -25,7 +25,7 @@ def test_report_has_everything_the_page_shows():
     assert len(r["matches"]) == 4
     assert [m["sim"] for m in r["matches"]] == sorted((m["sim"] for m in r["matches"]), reverse=True)
     m = r["matches"][0]
-    assert {"user", "sim", "lo", "hi", "p_top", "shared", "differs", "name", "title", "avatar", "country",
+    assert {"user", "sim", "lo", "hi", "p_top", "shared", "differs", "gm_features", "name", "title", "avatar", "country",
             "openings"} <= set(m)
     assert m["name"] and m["openings"] and set(m["openings"][0]) == {"family", "side", "share"}
     assert 1 <= len(r["openings"]) <= 3 and set(r["openings"][0]) == {"family", "side", "share"}

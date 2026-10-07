@@ -39,7 +39,7 @@ def reading_rows(gm, user, fams):
 def gm_card(u, r, vec, P, gm, info):
     d = info.loc[u].to_dict() if u in info.index else {}
     return {"user": u, **r.to_dict(), **match.explain(vec, P.loc[u]),
-            "name": d.get("name") or u, "title": d.get("title", ""), "avatar": d.get("avatar", ""),
+            "gm_features": P.loc[u].to_dict(), "name": d.get("name") or u, "title": d.get("title", ""), "avatar": d.get("avatar", ""),
             "country": d.get("country", ""), "openings": top_openings(gm[gm.username == u])}
 
 
@@ -131,12 +131,16 @@ if st.runtime.exists():
         html(f'<div class="cs-card">You lose material by mistake <b>{present.blunder_words(you, peers)}</b> players '
              f"at your rating ({you:.2f} vs {peers:.2f} times per game).</div>")
 
-    html(present.section_html("♛", "Your closest grandmasters", "who shares your habits"))
+    html(present.section_html("♛", "Your closest players", "grandmasters and chess personalities"))
     top, *rest = r["matches"]
     html(present.gm_hero_html(top, vec))
+    used = set()
     for rank, (col, m) in enumerate(zip(st.columns(3), rest), start=2):
+        shared = present.shared_features(vec, m["gm_features"])
+        feature = next((f for f in shared if f not in used), shared[0] if shared else None)
+        used.add(feature)
         with col:
-            html(present.gm_small_html(m, vec, rank))
+            html(present.gm_small_html(m, vec, rank, feature))
 
     if r["reading"]:
         html(present.section_html("♗", f"Study {top['name']}'s games", "in the openings you play"))
@@ -148,14 +152,14 @@ if st.runtime.exists():
         st.dataframe(present.numbers_table(r), hide_index=True, width="stretch")
     with st.expander("How does this work?"):
         st.markdown(
-            f"1. Each of your games becomes 21 habits: how often you check and capture, when you castle, "
+            f"1. Each of your games becomes {len(profile.FEATURES)} habits: how often you check and capture, when you castle, "
             f"when queens come off, how you spend your clock, and so on.\n"
             f"2. Those habits are compared with your opponents at the same rating, allowing for the openings you "
             f"play, so the result describes style rather than strength or repertoire.\n"
             f"3. The same is done for {n_gms} grandmasters and chess personalities; the closest ones share the most "
             f"habits with you.\n"
-            f"4. To show how sure the match is, your games are reshuffled 1,000 times and the matching is redone. "
-            f"The 'likely' range and 'top 3 in 8 of 10' come from that.\n\n"
+            f"4. To show how sure the match is, your games are reshuffled and re-checked 1,000 times. "
+            f"The 'likely between' range and 'stays in your top 3' come from that.\n\n"
             f"Tested on grandmasters themselves: given 100 of a grandmaster's games, the method puts the right one in "
             f"its top 5 44% of the time (picking at random would manage 10%).")
 

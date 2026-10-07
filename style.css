@@ -18,11 +18,11 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', Georgia, serif; color: var(--w
 .cs-card .summary { color: var(--muted); margin: .2rem 0 .4rem; }
 .cs-card ul { margin: .2rem 0 0 1.1rem; padding: 0; }
 .cs-card li { margin: .15rem 0; }
-.cs-scale { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; margin: .4rem 0 .1rem; }
+.cs-scale { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; margin: .4rem 0 .1rem; }
 .cs-scale div { height: 14px; border-radius: 3px; background: var(--sq-light); }
 .cs-scale div:nth-child(even) { background: #e3c9a0; }
 .cs-scale div.on { background: var(--walnut); }
-.cs-scale-labels { display: grid; grid-template-columns: repeat(5, 1fr); font-size: .72rem; color: var(--muted); text-align: center; }
+.cs-scale-labels { display: grid; grid-template-columns: repeat(3, 1fr); font-size: .72rem; color: var(--muted); text-align: center; }
 .cs-gm { display: flex; gap: 1.3rem; align-items: flex-start; border-left-color: var(--gold); }
 .cs-gm img, .cs-gm .placeholder { width: 128px; height: 128px; flex: none; border-radius: 8px; object-fit: cover; border: 3px solid var(--walnut); }
 .placeholder { display: flex; align-items: center; justify-content: center; font-size: 4rem; background: var(--sq-light); color: var(--walnut); }
@@ -37,6 +37,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', Georgia, serif; color: var(--w
 .cs-small .placeholder { display: flex; }
 .cs-opening { text-align: center; }
 .cs-opening img, .cs-opening .placeholder { width: 100%; max-width: 200px; aspect-ratio: 1; border: 4px solid var(--walnut); border-radius: 4px; margin: 0 auto .4rem; }
+.cs-table-wrap { overflow-x: auto; }
 .cs-table { width: 100%; border-collapse: collapse; background: var(--paper); border-radius: 8px; overflow: hidden; }
 .cs-table th { text-align: left; font-family: 'Playfair Display', Georgia, serif; color: var(--walnut); border-bottom: 2px solid var(--walnut); padding: .5rem; }
 .cs-table td { padding: .5rem; border-bottom: 1px solid var(--line); }
