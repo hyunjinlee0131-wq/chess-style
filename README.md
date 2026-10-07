@@ -35,7 +35,7 @@ cosine similarity, 1,000-sample bootstrap for uncertainty.
   grischuk 0.79 [0.75, 0.83], 87%. All three are driven by the shared middlegame time use and time trouble.
   The top 5 is fairly stable: the two halves of my recent games share 4 of their 5 matches.
 - Validation (rapid pool): top-5 identification @ 100 games = 44% vs chance 10% → **PASS** (bar 30%, fixed in advance).
-  Blitz pool: top-5 @ 100 games = 80% vs chance 10% → **PASS**. Not directly comparable to the rapid figure: each GM's recent blitz games span about 166 days (median) against 2283 days for rapid, so training and test games are close in time. With a gap between them (each GM's middle 20% of games dropped) it is 72% for blitz against 39% for rapid, and clock-use habits carry much of the blitz signal.
+  Blitz pool: top-5 @ 100 games = 80% vs chance 10% → **PASS**. Not directly comparable to the rapid figure: each GM's recent blitz games span about 166 days (median) against 2283 days for rapid, so training and test games are close in time. With a gap between them (each GM's middle 20% of games dropped) it is 72% for blitz against 39% for rapid — the blitz gap is only about a month, against more than a year for rapid — and clock-use habits carry much of the blitz signal (shuffling them drops top-5 from 80% to 51%).
   Opening ablation: raw features identify GMs better (54%) than opening-adjusted ones (44%), so repertoire
   carries real identity signal, which the adjustment deliberately removes. Most informative features: none
   stands out; shuffling any single feature costs at most 1.4 points (captures, pawn share), so the signal is
@@ -46,6 +46,7 @@ cosine similarity, 1,000-sample bootstrap for uncertainty.
 - Untestable assumption: "unusual for your level" means the same at 1800 and GM level.
 - Material-blunder detection only sees immediate material loss; positional mistakes are invisible.
 - GM rapid games may be years old (oldest 2011).
+- 'How well you play' compares you with your opponents in the same games, within wins, draws and losses separately; accuracy only exists for games reviewed on chess.com.
 - The validation has only 70 held-out 100-game chunks, so each accuracy figure is ±~6 points.
 
 ## Run it

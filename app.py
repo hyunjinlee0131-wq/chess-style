@@ -65,7 +65,6 @@ def report(table, gm, P, info, time_class="rapid"):
         "raw": mine[profile.FEATURES].mean(),
         "peer_raw": peers[profile.FEATURES].mean(),
         "openings": top_openings(mine),
-        "blunders": (mine.material_blunders.mean(), peers.material_blunders.mean()),
         "quality": present.quality_rows(mine, peers),
         "matches": [gm_card(u, r, vec, P, gm, info) for u, r in boot.iterrows()],
         "reading": reading_rows(gm, boot.index[0], fams),
@@ -175,11 +174,18 @@ if st.runtime.exists():
                             "speed, because time pressure changes habits.")
         st.markdown(
             "\n".join(f"{i}. {t}" for i, t in enumerate(steps, 1)) + "\n\n"
-            "Tested on grandmasters themselves: given 100 of a grandmaster's games, the method puts the right one in "
-            "its top 5 44% of the time (picking at random would manage 10%).\n\n"
+            + ("Tested on grandmasters' blitz games: given 100 of a grandmaster's games, the method puts the right "
+               "one in its top 5 80% of the time (picking at random would manage 10%); their blitz games are close "
+               "in time, so this flatters it a little — with a gap it is 72%."
+               if time_class == "blitz" else
+               "Tested on grandmasters themselves: given 100 of a grandmaster's games, the method puts the right "
+               "one in its top 5 44% of the time (picking at random would manage 10%).") + "\n\n"
             "**How well you play** compares your accuracy (from chess.com game review), material blunders and time "
             "trouble with your opponents in the same games: Bad, Weak, Average, Good or Excellent for your rating. "
-            "Your style, above, is never rated good or bad — it only says how distinctive it is.")
+            "Your style, above, is never rated good or bad — it only says how distinctive it is.\n\n"
+            "Each measure compares your wins with other players' wins and your losses with their losses, so a "
+            "winning streak alone does not make you look better. Time trouble also appears under Clock use as a "
+            "habit; here it is rated, because running short of time costs games.")
 
     html(f'<p class="cs-muted" style="text-align:center;margin-top:2rem">Based on {r["games"]} recent {time_class} games, '
          f'rating {r["ratings"][0]}–{r["ratings"][1]}.</p>')

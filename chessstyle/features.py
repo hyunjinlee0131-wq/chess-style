@@ -168,5 +168,8 @@ def features_table(games, username, engine=None):
             rows.append({"game": g["url"], "end_time": g["end_time"], "who": "player" if side == me else "opponent",
                          "username": g[side]["username"].lower(), "side": side, "rating": g[side]["rating"],
                          "player_rating": g[me]["rating"], "time_control": g["time_control"],
-                         "accuracy": (g.get("accuracies") or {}).get(side, NAN), **feats[side]})
+                         "accuracy": (g.get("accuracies") or {}).get(side, NAN),
+                         "outcome": "win" if g[side].get("result") == "win" else
+                                    "loss" if g["black" if side == "white" else "white"].get("result") == "win" else "draw",
+                         **feats[side]})
     return pd.DataFrame(rows)

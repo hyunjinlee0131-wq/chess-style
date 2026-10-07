@@ -41,3 +41,6 @@ def gapped(t):
 span = lambda t: (t.groupby("username").end_time.agg(lambda s: s.max() - s.min()) / 86400).median()
 print(f"median span per GM: rapid {span(gm):.0f} days, blitz {span(blitz):.0f} days")
 pd.DataFrame({"rapid, gapped": match.identify(gapped(gm), 100), "blitz, gapped": match.identify(gapped(blitz), 100)}).T
+
+# %% 7. How much of the blitz signal is clock use? (shuffle the four time-use habits in the test games)
+print(pd.DataFrame({"blitz": match.identify(blitz, 100), "blitz, clock habits shuffled": match.identify(blitz, 100, drop=profile.GROUPS["Time use"])}).T)

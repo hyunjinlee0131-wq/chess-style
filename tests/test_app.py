@@ -19,7 +19,7 @@ def fake_table():
 def test_report_has_everything_the_page_shows():
     gm, P, info = app.gm_profiles()
     r = app.report(fake_table(), gm, P, info)
-    assert set(r) == {"games", "ratings", "groups", "features", "raw", "peer_raw", "openings", "blunders",
+    assert set(r) == {"games", "ratings", "groups", "features", "raw", "peer_raw", "openings",
                       "matches", "reading", "quality"}
     assert [q["measure"] for q in r["quality"]] == ["accuracy", "material_blunders", "time_trouble"]
     assert list(r["groups"].index) == list(profile.GROUPS)

@@ -80,13 +80,6 @@ def test_shared_features_and_differs_feature_are_truthful():
     assert present.differs_feature(vec, pd.Series({"checks": 0.5})) is None
 
 
-def test_blunder_words():
-    assert present.blunder_words(0.59, 0.51) == "a bit more often than"
-    assert present.blunder_words(0.5, 0.5) == "about as often as"
-    assert present.blunder_words(0.2, 0.5) == "much less often than"
-    assert present.blunder_words(float("nan"), 0.5) == "not available"
-
-
 def test_openings_and_boards():
     fams = set(pd.read_csv(fetch.DATA / "gm_games.csv").family)
     assert fams <= set(present.OPENINGS)
@@ -219,3 +212,16 @@ def test_quality_card_html():
     na = present.quality_card_html({"measure": "accuracy", "label": "Accuracy", "you": float("nan"),
                                     "peers": float("nan"), "n": 3, "level": None})
     assert "Not available" in na and "review more" in na and 'class="on"' not in na
+
+
+def _acc(vals):  # +-1 alternating spread so std > 0
+    return [v + (1 if i % 2 else -1) for i, v in enumerate(vals)]
+
+
+def test_quality_compared_within_outcome():
+    mine = pd.DataFrame({"accuracy": _acc([80.0] * 20 + [60.0] * 5), "outcome": ["win"] * 20 + ["loss"] * 5})
+    peers = pd.DataFrame({"accuracy": _acc([80.0] * 5 + [60.0] * 20), "outcome": ["win"] * 5 + ["loss"] * 20})
+    acc = lambda m, p: present.quality_rows(m, p)[0]
+    assert acc(mine.drop(columns="outcome"), peers.drop(columns="outcome"))["level"] == 4  # pooled is fooled
+    assert acc(mine, peers)["level"] == 2
+    assert acc(mine, peers)["n"] == 25

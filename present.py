@@ -61,7 +61,6 @@ OPENINGS = {
     "d4-other": ("Other replies to 1.d4", "1.d4"), "english": ("English Opening", "1.c4"),
     "reti": ("Réti Opening", "1.Nf3"), "other": ("Other openings", ""),
 }
-LEVELS = ["typical", "slightly distinctive", "clearly distinctive", "strongly distinctive", "very strongly distinctive"]
 SHORT = ["typical", "slightly", "clearly", "strongly", "very strongly"]
 LEVEL_CUTS = [0.15, 0.30, 0.45, 0.80]
 SUMMARY = ["About typical for your rating", "Slightly distinctive", "Clearly distinctive", "Strongly distinctive",
@@ -90,16 +89,29 @@ def quality_level(score):
     return None if _missing(score) else sum(score >= c for c in QUALITY_CUTS)
 
 
+def _scores(mine, peers, col, sign):
+    """(score, you, peers): pooled, or the plain mean over outcomes (wins vs wins, ...) when both have `outcome`."""
+    nan = float("nan")
+    if "outcome" not in mine or "outcome" not in peers:
+        y, p = mine[col].dropna(), peers[col].dropna()
+        ok = len(y) >= (MIN_REVIEWED if col == "accuracy" else 1) and len(p) >= 2 and p.std() > 0
+        return (sign * (y.mean() - p.mean()) / p.std(), y.mean(), p.mean()) if ok else (nan,) * 3
+    got = []
+    for o in ("win", "draw", "loss"):
+        y, p = mine.loc[mine.outcome == o, col].dropna(), peers.loc[peers.outcome == o, col].dropna()
+        if len(y) >= 5 and len(p) >= 5 and p.std() > 0:
+            got.append((sign * (y.mean() - p.mean()) / p.std(), y.mean(), p.mean()))
+    return tuple(np.mean(got, axis=0)) if got and mine[col].count() >= (MIN_REVIEWED if col == "accuracy" else 1) else (nan,) * 3
+
+
 def quality_rows(mine, peers):
     """Player's current games vs opponents in the same games, for measures where better is unambiguous."""
     rows = []
     for col, label, higher_better in QUALITY_MEASURES:
-        y = mine[col].dropna() if col in mine else pd.Series(dtype=float)
-        p = peers[col].dropna() if col in peers else pd.Series(dtype=float)
-        enough = len(y) >= (MIN_REVIEWED if col == "accuracy" else 1) and len(p) >= 2 and p.std() > 0
-        score = (y.mean() - p.mean()) / p.std() * (1 if higher_better else -1) if enough else float("nan")
-        rows.append({"measure": col, "label": label, "you": y.mean() if enough else float("nan"),
-                     "peers": p.mean() if enough else float("nan"), "n": len(y), "level": quality_level(score)})
+        have = col in mine and col in peers
+        score, you, peer = _scores(mine, peers, col, 1 if higher_better else -1) if have else (float("nan"),) * 3
+        rows.append({"measure": col, "label": label, "you": you, "peers": peer,
+                     "n": int(mine[col].count()) if col in mine else 0, "level": quality_level(score)})
     return rows
 
 
@@ -176,15 +188,6 @@ def differs_sentence(feature, vec, name="they"):
     if feature is None or feature not in vec or _missing(vec[feature]):
         return ""
     return f"you {_phrase(feature, vec[feature])}; {name} does the opposite"
-
-
-def blunder_words(you, peers):
-    if _missing(you) or _missing(peers):
-        return "not available"
-    d = (you - peers) / peers if peers else 0.0
-    if abs(d) < 0.1:
-        return "about as often as"
-    return f"{'a bit' if abs(d) < 0.3 else 'much'} {'more' if d > 0 else 'less'} often than"
 
 
 def opening_name(family):
