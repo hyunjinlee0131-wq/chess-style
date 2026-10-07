@@ -1,9 +1,16 @@
 """Plain-language wording and chess visuals for the app. No Streamlit here, so it is unit-testable."""
 import base64
 import math
+from html import escape as esc
 
 import chess
 import chess.svg
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
 from chessstyle import profile
 
@@ -153,3 +160,106 @@ def flag(code):
     if len(code) != 2 or not code.isalpha():
         return ""
     return "".join(chr(0x1F1E6 + ord(c) - ord("A")) for c in code)
+
+
+def section_html(glyph, title, sub=""):
+    return (f'<div class="cs-section"><span class="glyph">{glyph}</span><h2>{esc(title)}</h2>'
+            f'<span class="sub">{esc(sub)}</span></div>')
+
+
+def _scale_html(step):
+    cells = "".join(f'<div class="{"on" if i == step else ""}"></div>' for i in range(5))
+    labels = "".join(f"<span>{s}</span>" for s in SCALE)
+    return f'<div class="cs-scale">{cells}</div><div class="cs-scale-labels">{labels}</div>'
+
+
+def trait_card_html(c):
+    habits = "".join(f"<li>{esc(h)}</li>" for h in c["habits"])
+    return (f'<div class="cs-card"><h4>{c["glyph"]} {esc(c["label"])}</h4>{_scale_html(c["step"])}'
+            f'<div class="summary">{esc(c["summary"])}</div>' + (f"<ul>{habits}</ul>" if habits else "") + "</div>")
+
+
+def photo_html(m):
+    if str(m.get("avatar", "")).startswith("https://"):
+        return f'<img src="{esc(m["avatar"])}" alt="{esc(m["name"])}">'
+    return '<div class="placeholder">♚</div>'
+
+
+def _title(m):
+    return f'<span class="cs-title-badge">{esc(m["title"])}</span>' if m.get("title") else ""
+
+
+def gm_hero_html(m, vec):
+    w = match_words(m)
+    ops = ", ".join(f'{opening_name(o["family"])} as {o["side"]} ({o["share"]:.0%})' for o in m["openings"])
+    shared, differs = shared_sentence(m["shared"], vec), differs_sentence(m["differs"], vec)
+    return (f'<div class="cs-card cs-gm">{photo_html(m)}<div>'
+            f'<p class="name">{_title(m)}{esc(m["name"])} {flag(m["country"])}</p>'
+            f'<div><span class="cs-pct">{w["pct"]}</span> <span class="cs-muted">{w["range"]} · {w["top3"]}</span></div>'
+            + (f'<p><b>Plays like you because</b> {esc(shared)}.</p>' if shared else "")
+            + (f'<p><b>Where you differ:</b> {esc(differs)}.</p>' if differs else "")
+            + (f'<p><b>Favourite openings:</b> {esc(ops)}</p>' if ops else "")
+            + f'<p><a href="https://www.chess.com/member/{esc(m["user"])}" target="_blank">'
+              f'View {esc(m["name"])} on chess.com →</a></p></div></div>')
+
+
+def gm_small_html(m, vec, rank):
+    w = match_words(m)
+    because = shared_sentence(m["shared"][:1], vec)
+    return (f'<div class="cs-card cs-small">{photo_html(m)}<div class="cs-muted">#{rank}</div>'
+            f'<h4>{_title(m)}{esc(m["name"])} {flag(m["country"])}</h4>'
+            f'<div class="cs-pct cs-pct-small">{w["pct"]}</div>'
+            f'<div class="cs-muted">{esc(because[:1].upper() + because[1:])}</div></div>')
+
+
+def opening_html(o):
+    name, moves = OPENINGS.get(o["family"], (o["family"], ""))
+    uri = board_uri(o["family"], o["side"])
+    img = f'<img src="{uri}" alt="{esc(name)}">' if uri else '<div class="placeholder">♟</div>'
+    detail = " · ".join(x for x in (moves, f"as {o['side']}", f"{o['share']:.0%} of your games") if x)
+    return f'<div class="cs-card cs-opening">{img}<h4>{esc(name)}</h4><div class="cs-muted">{esc(detail)}</div></div>'
+
+
+def reading_table_html(rows):
+    body = "".join(
+        f'<tr><td>{esc(r["date"])}</td><td>{esc(opening_name(r["family"]))} '
+        f'<span class="cs-muted">as {esc(r["side"])}</span></td><td>{esc(r["opponent"])}</td>'
+        f'<td class="cs-{esc(r["result"] or "draw")}">{RESULT.get(r["result"], "—")}</td>'
+        f'<td><a href="{esc(r["url"])}" target="_blank">Open game →</a></td></tr>' for r in rows)
+    return ('<table class="cs-table"><tr><th>Date</th><th>Opening</th><th>Opponent</th><th>Result</th><th></th></tr>'
+            f"{body}</table>")
+
+
+def _num(x):
+    return "—" if _missing(x) else f"{x:.2f}"
+
+
+def numbers_table(r):
+    rows = []
+    for g, fs in profile.GROUPS.items():
+        for f in fs:
+            s = scale_step(r["features"][f])
+            rows.append({"Area": LABELS[g], "Habit": FEATURE_NAMES[f], "You": _num(r["raw"][f]),
+                         "Players at your rating": _num(r["peer_raw"][f]),
+                         "Compared with them": "not available" if s is None else SCALE[s]})
+    return pd.DataFrame(rows)
+
+
+def radar(cards):
+    """Five style groups on the 5-step scale; dashed ring = typical."""
+    labels = [c["label"] for c in cards]
+    vals = [2 if c["step"] is None else c["step"] for c in cards]
+    ang = np.linspace(0, 2 * np.pi, len(cards), endpoint=False).tolist()
+    loop = lambda xs: xs + xs[:1]
+    fig, ax = plt.subplots(figsize=(4.2, 4.2), subplot_kw={"polar": True})
+    fig.patch.set_facecolor("#f6efe2")
+    ax.set_facecolor("#fbf7ef")
+    ax.plot(loop(ang), [2] * (len(ang) + 1), color="#b58863", lw=1, ls="--")
+    ax.plot(loop(ang), loop(vals), color="#5b3a21", lw=2.2)
+    ax.fill(loop(ang), loop(vals), color="#8b5a2b", alpha=0.25)
+    ax.set_ylim(0, 4)
+    ax.set_yticks([0, 2, 4], ["much less", "typical", "much more"], color="#7a6552", fontsize=7)
+    ax.set_xticks(ang, labels, fontfamily="serif", color="#2b1d12", fontsize=10)
+    ax.spines["polar"].set_color("#b58863")
+    ax.grid(color="#e3d5bd")
+    return fig

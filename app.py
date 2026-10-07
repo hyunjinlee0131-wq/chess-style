@@ -1,13 +1,15 @@
 """Which grandmaster plays like me? Streamlit page. Run: streamlit run app.py"""
 import urllib.error
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
+import present
 from chessstyle import features, fetch, match, profile
 
 N_GAMES = 300
-REPO = "https://github.com/hyunjinlee0131-wq/chess-style"
+EXAMPLE = "tanit0131"
 
 
 @st.cache_resource
@@ -79,21 +81,28 @@ def analyse(username):
 
 
 if st.runtime.exists():
-    st.set_page_config(page_title="Which GM plays like me?", page_icon="♟")
-    st.title("Which grandmaster plays like me?")
-    gm, P, info = gm_profiles()
-    st.caption(f"Your style from your last {N_GAMES} rated rapid games on chess.com, measured against players at "
-               f"your rating and adjusted for openings, then matched to {len(P)} GMs. "
-               f"[Method and validation]({REPO})")
+    st.set_page_config(page_title="Which GM plays like you?", page_icon="♞", layout="centered")
+    st.markdown(f"<style>{(Path(__file__).parent / 'style.css').read_text(encoding='utf-8')}</style>",
+                unsafe_allow_html=True)
+    n_gms = len(gm_profiles()[1])
+    st.markdown(
+        '<div class="cs-hero"><div class="glyph">♞</div><h1>Which grandmaster plays like you?</h1>'
+        f"<p>We read your last {N_GAMES} rated rapid games on chess.com, compare your habits with players at your "
+        f"rating, and find which of {n_gms} grandmasters and chess personalities play most like you.</p></div>",
+        unsafe_allow_html=True)
 
     with st.form("lookup"):
-        username = st.text_input("chess.com username").strip().lower()
-        go = st.form_submit_button("Analyse")
+        username = st.text_input("Your chess.com username", placeholder="e.g. hikaru").strip().lower()
+        left, right = st.columns(2)
+        go = left.form_submit_button("Find my grandmaster", type="primary", width="stretch")
+        example = right.form_submit_button(f"Try an example ({EXAMPLE})", width="stretch")
+    if example:
+        username, go = EXAMPLE, True
     if not (go and username):
         st.stop()
 
     try:
-        with st.spinner(f"Downloading and analysing {username}'s recent games..."):
+        with st.spinner(f"Reading {username}'s recent games and comparing habits... (about 20 seconds)"):
             r = analyse(username)
     except ValueError as e:
         st.error(str(e))
@@ -102,30 +111,53 @@ if st.runtime.exists():
         st.error("chess.com didn't respond. Try again in a minute.")
         st.stop()
 
-    st.subheader("Style profile")
-    st.caption("σ = standard deviations from players at your rating; 0 = typical.")
-    st.bar_chart(r["groups"], horizontal=True)
-    rows = [(g, f, "unavailable" if pd.isna(r["features"][f]) else round(r["features"][f], 2), "both players shape this" if f in profile.INTERACTIVE else "")
-            for g, fs in profile.GROUPS.items() for f in fs]
-    st.dataframe(pd.DataFrame(rows, columns=["group", "feature", "σ", "note"]), hide_index=True)
+    html = lambda s: st.markdown(s, unsafe_allow_html=True)
+    vec = r["features"]
+    cards = present.trait_cards(r["groups"], vec)
 
-    st.subheader("Openings")
-    left, right = st.columns(2)
-    left.dataframe(pd.DataFrame(r["openings"]))
+    html(present.section_html("♚", "Your style", "compared with players at your rating"))
+    left, right = st.columns([2, 3])
+    left.pyplot(present.radar(cards), width="stretch")
+    with right:
+        for c in cards:
+            html(present.trait_card_html(c))
+
+    html(present.section_html("♟", "Your openings", "your most played"))
+    for col, o in zip(st.columns(3), r["openings"]):
+        with col:
+            html(present.opening_html(o))
     you, peers = r["blunders"]
-    if pd.isna(you):
-        right.metric("Material blunders / game", "unavailable")
-    else:
-        right.metric("Material blunders / game", f"{you:.2f}", f"{you - peers:+.2f} vs peers", delta_color="inverse")
+    if not pd.isna(you):
+        html(f'<div class="cs-card">You lose material by mistake <b>{present.blunder_words(you, peers)}</b> players '
+             f"at your rating ({you:.2f} vs {peers:.2f} times per game).</div>")
 
-    st.subheader("Closest grandmasters")
-    for m in r["matches"]:
-        st.markdown(f"**{m['user']}** — similarity {m['sim']:.2f} (95% interval {m['lo']:.2f}–{m['hi']:.2f}), "
-                    f"top-3 in {m['p_top']:.0%} of resamples  \n"
-                    f"shared: {', '.join(m['shared'])} · differs most: {m['differs']}")
+    html(present.section_html("♛", "Your closest grandmasters", "who shares your habits"))
+    top, *rest = r["matches"]
+    html(present.gm_hero_html(top, vec))
+    for rank, (col, m) in enumerate(zip(st.columns(3), rest), start=2):
+        with col:
+            html(present.gm_small_html(m, vec, rank))
 
-    st.subheader(f"Reading list: {r['matches'][0]['user']} in your openings")
-    for x in r["reading"]:
-        st.markdown(f"- {x['date']} · {x['result']} · {x['url']}")
+    if r["reading"]:
+        html(present.section_html("♗", f"Study {top['name']}'s games", "in the openings you play"))
+        html(present.reading_table_html(r["reading"]))
 
-    st.caption(f"Based on {r['games']} current games, rating {r['ratings'][0]}–{r['ratings'][1]}.")
+    with st.expander("Show the numbers"):
+        st.caption("Your average per game next to players at your rating. 'Compared with them' also allows for the "
+                   "openings you play, so it can differ slightly from the raw averages.")
+        st.dataframe(present.numbers_table(r), hide_index=True, width="stretch")
+    with st.expander("How does this work?"):
+        st.markdown(
+            f"1. Each of your games becomes 21 habits: how often you check and capture, when you castle, "
+            f"when queens come off, how you spend your clock, and so on.\n"
+            f"2. Those habits are compared with your opponents at the same rating, allowing for the openings you "
+            f"play, so the result describes style rather than strength or repertoire.\n"
+            f"3. The same is done for {n_gms} grandmasters and chess personalities; the closest ones share the most "
+            f"habits with you.\n"
+            f"4. To show how sure the match is, your games are reshuffled 1,000 times and the matching is redone. "
+            f"The 'likely' range and 'top 3 in 8 of 10' come from that.\n\n"
+            f"Tested on grandmasters themselves: given 100 of a grandmaster's games, the method puts the right one in "
+            f"its top 5 44% of the time (picking at random would manage 10%).")
+
+    html(f'<p class="cs-muted" style="text-align:center;margin-top:2rem">Based on {r["games"]} recent games, '
+         f'rating {r["ratings"][0]}–{r["ratings"][1]}.</p>')
