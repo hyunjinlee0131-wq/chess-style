@@ -28,12 +28,20 @@ def rapid(u):
 
 
 def gm_rows(u, group, engine):
+    """One player's rapid feature rows; cached per player so a rerun skips finished players."""
+    done = fetch.DATA / "gm" / f"{u}.csv"
+    if done.exists():
+        return pd.read_csv(done)
+    print(f"{u}: downloading...", flush=True)
     gs = fetch.games(u, "rapid")
     ten_to_fifteen = [g for g in gs if 600 <= features.parse_tc(g["time_control"])[0] <= 900]
     if len(ten_to_fifteen) >= MIN_GAMES:
         gs = ten_to_fifteen
     t = features.features_table(gs, u, engine)
-    return t[t.who == "player"].assign(pool=group)
+    t = t[t.who == "player"].assign(pool=group)
+    done.parent.mkdir(exist_ok=True)
+    t.to_csv(done, index=False)
+    return t
 
 
 def main():
