@@ -3,6 +3,10 @@
 Style profiling and grandmaster matching for any chess.com rapid player, measured against
 players of the **same rating**, adjusted for **openings**, with an honest validation.
 
+## Try it
+Run the web app locally: `.venv/Scripts/python -m streamlit run app.py`, then enter any chess.com username.
+It analyses the 300 most recent rated rapid games (no climb chart; see the notebooks for full history).
+
 ## Question
 Comparing an 1800 to a grandmaster on raw stats mostly measures strength: GMs blunder less, convert more and
 play longer games. This project asks a narrower question: once rating and opening repertoire are taken out,

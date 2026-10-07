@@ -36,3 +36,68 @@ def report(table, gm, P):
         "matches": [{"user": u, **r.to_dict(), **match.explain(vec, P.loc[u])} for u, r in boot.iterrows()],
         "reading": match.reading_list(gm, boot.index[0], fams),
     }
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def analyse(username):
+    games = fetch.games(username, limit=N_GAMES)
+    engine = features.open_engine()
+    try:
+        table = features.features_table(games, username, engine)
+    finally:
+        if engine:
+            engine.quit()
+    gm, P = gm_profiles()
+    return report(table, gm, P)
+
+
+if st.runtime.exists():
+    st.set_page_config(page_title="Which GM plays like me?", page_icon="♟")
+    st.title("Which grandmaster plays like me?")
+    st.caption(f"Your style from your last {N_GAMES} rated rapid games on chess.com, measured against players at "
+               f"your rating and adjusted for openings, then matched to {len(gm_profiles()[1])} GMs. "
+               f"[Method and validation]({REPO})")
+
+    with st.form("lookup"):
+        username = st.text_input("chess.com username").strip().lower()
+        go = st.form_submit_button("Analyse")
+    if not (go and username):
+        st.stop()
+
+    try:
+        with st.spinner(f"Downloading and analysing {username}'s recent games..."):
+            r = analyse(username)
+    except ValueError as e:
+        st.error(str(e))
+        st.stop()
+    except (urllib.error.URLError, TimeoutError, OSError):
+        st.error("chess.com didn't respond. Try again in a minute.")
+        st.stop()
+
+    st.subheader("Style profile")
+    st.caption("σ = standard deviations from players at your rating; 0 = typical.")
+    st.bar_chart(r["groups"], horizontal=True)
+    rows = [(g, f, round(r["features"][f], 2), "both players shape this" if f in profile.INTERACTIVE else "")
+            for g, fs in profile.GROUPS.items() for f in fs]
+    st.dataframe(pd.DataFrame(rows, columns=["group", "feature", "σ", "note"]), hide_index=True)
+
+    st.subheader("Openings")
+    left, right = st.columns(2)
+    left.dataframe(r["openings"].rename("share").map("{:.0%}".format))
+    you, peers = r["blunders"]
+    if pd.isna(you):
+        right.metric("Material blunders / game", "unavailable")
+    else:
+        right.metric("Material blunders / game", f"{you:.2f}", f"{you - peers:+.2f} vs peers", delta_color="inverse")
+
+    st.subheader("Closest grandmasters")
+    for m in r["matches"]:
+        st.markdown(f"**{m['user']}** — similarity {m['sim']:.2f} (95% interval {m['lo']:.2f}–{m['hi']:.2f}), "
+                    f"top-3 in {m['p_top']:.0%} of resamples  \n"
+                    f"shared: {', '.join(m['shared'])} · differs most: {m['differs']}")
+
+    st.subheader(f"Reading list: {r['matches'][0]['user']} in your openings")
+    for url in r["reading"]:
+        st.markdown(f"- {url}")
+
+    st.caption(f"Based on {r['games']} current games, rating {r['ratings'][0]}–{r['ratings'][1]}.")
