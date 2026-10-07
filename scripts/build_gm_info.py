@@ -11,11 +11,7 @@ import pandas as pd
 from chessstyle import fetch
 
 
-def gm_result(game, username):
-    """(opponent username, 'win' | 'loss' | 'draw') from `username`'s side of a chess.com game dict."""
-    me, opp = ("white", "black") if game["white"]["username"].lower() == username.lower() else ("black", "white")
-    outcome = "win" if game[me]["result"] == "win" else "loss" if game[opp]["result"] == "win" else "draw"
-    return game[opp]["username"], outcome
+gm_result = fetch.result_for
 
 
 def main():

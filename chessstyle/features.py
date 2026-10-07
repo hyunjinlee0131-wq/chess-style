@@ -167,5 +167,6 @@ def features_table(games, username, engine=None):
         for side in ("white", "black"):
             rows.append({"game": g["url"], "end_time": g["end_time"], "who": "player" if side == me else "opponent",
                          "username": g[side]["username"].lower(), "side": side, "rating": g[side]["rating"],
-                         "player_rating": g[me]["rating"], "time_control": g["time_control"], **feats[side]})
+                         "player_rating": g[me]["rating"], "time_control": g["time_control"],
+                         "accuracy": (g.get("accuracies") or {}).get(side, NAN), **feats[side]})
     return pd.DataFrame(rows)

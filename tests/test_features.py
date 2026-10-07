@@ -91,3 +91,13 @@ def test_open_engine_none_without_stockfish(monkeypatch):
     monkeypatch.delenv("STOCKFISH_PATH", raising=False)
     monkeypatch.setattr(features.shutil, "which", lambda name, path=None: None)
     assert features.open_engine() is None
+
+
+def test_features_table_records_accuracy():
+    g = {"url": "u1", "end_time": 1, "time_control": "600", "pgn": CASTLE,
+         "white": {"username": "Me", "rating": 1700}, "black": {"username": "Opp", "rating": 1720},
+         "accuracies": {"white": 81.5, "black": 74.2}}
+    no_review = {k: v for k, v in g.items() if k != "accuracies"}
+    t = features.features_table([g, dict(no_review, url="u2"), dict(g, url="u3", accuracies=None)], "me")
+    assert list(t.accuracy[:2]) == [81.5, 74.2]
+    assert t.accuracy[2:].isna().all()

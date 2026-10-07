@@ -91,3 +91,11 @@ def test_invalid_username_rejected_before_any_request(monkeypatch, name):
     with pytest.raises(ValueError, match="not a valid"):
         fetch.games(name)
     assert calls == []
+
+
+def test_result_for_either_side():
+    g = {"white": {"username": "Alice", "result": "win"}, "black": {"username": "bob", "result": "resigned"}}
+    assert fetch.result_for(g, "alice") == ("bob", "win")
+    assert fetch.result_for(g, "BOB") == ("Alice", "loss")
+    draw = {"white": {"username": "Alice", "result": "agreed"}, "black": {"username": "bob", "result": "agreed"}}
+    assert fetch.result_for(draw, "bob") == ("Alice", "draw")

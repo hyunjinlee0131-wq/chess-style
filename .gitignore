@@ -6,3 +6,5 @@ data/*
 !data/gm_info.csv
 !data/gm_results.csv
 Tools/
+!data/gm_blitz.csv
+!data/gm_blitz_results.csv

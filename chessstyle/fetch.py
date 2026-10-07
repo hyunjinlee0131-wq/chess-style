@@ -58,3 +58,10 @@ def games(username, time_class="rapid", cache=DATA / "raw", limit=None):
         chunks.reverse()
     out = [g for c in chunks for g in c]
     return out[-limit:] if limit else out
+
+
+def result_for(game, username):
+    """(opponent username, 'win' | 'loss' | 'draw') from `username`'s side of a chess.com game dict."""
+    me, opp = ("white", "black") if game["white"]["username"].lower() == username.lower() else ("black", "white")
+    outcome = "win" if game[me]["result"] == "win" else "loss" if game[opp]["result"] == "win" else "draw"
+    return game[opp]["username"], outcome
