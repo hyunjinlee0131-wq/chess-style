@@ -57,3 +57,28 @@ def test_get_json_retries_timeouts(monkeypatch):
     monkeypatch.setattr(fetch.time, "sleep", lambda s: None)
     assert fetch.get_json("https://example.test") == {"ok": 1}
     assert len(attempts) == 3
+
+
+def fake_months(calls, months=("2025/03", "2025/04", "2025/05")):
+    def get_json(url):
+        calls.append(url)
+        if url.endswith("/games/archives"):
+            return {"archives": [f"{fetch.API}/player/me/games/{m}" for m in months]}
+        m = url[-7:]
+        return {"games": [{"rules": "chess", "rated": True, "time_class": "rapid", "pgn": "1. e4 *",
+                           "url": f"{m}-{i}"} for i in (1, 2)]}
+    return get_json
+
+
+def test_limit_reads_newest_months_first_and_stops(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(fetch, "get_json", fake_months(calls))
+    got = fetch.games("me", cache=tmp_path, limit=3)
+    assert [g["url"] for g in got] == ["2025/04-2", "2025/05-1", "2025/05-2"]
+    assert not any(c.endswith("/2025/03") for c in calls)
+
+
+def test_limit_larger_than_history_returns_everything(monkeypatch, tmp_path):
+    monkeypatch.setattr(fetch, "get_json", fake_months([]))
+    got = fetch.games("me", cache=tmp_path, limit=10)
+    assert [g["url"] for g in got] == ["2025/03-1", "2025/03-2", "2025/04-1", "2025/04-2", "2025/05-1", "2025/05-2"]

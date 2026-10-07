@@ -2,6 +2,7 @@
 import io
 import math
 import os
+import shutil
 
 import chess
 import chess.engine
@@ -63,8 +64,10 @@ def _time(own_clocks, base, inc):
 
 
 def open_engine():
-    """Stockfish from $STOCKFISH_PATH, or None (sacrifice/blunder features then stay NaN)."""
-    path = os.environ.get("STOCKFISH_PATH")
+    """Stockfish from $STOCKFISH_PATH, else on PATH or in /usr/games (Debian's apt location), else None
+    (sacrifice/blunder features then stay NaN)."""
+    path = os.environ.get("STOCKFISH_PATH") or shutil.which(
+        "stockfish", path=os.environ.get("PATH", "") + os.pathsep + "/usr/games")
     return chess.engine.SimpleEngine.popen_uci(path) if path else None
 
 

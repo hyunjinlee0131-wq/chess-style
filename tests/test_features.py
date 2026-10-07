@@ -76,3 +76,16 @@ def test_features_table_rows_and_skips():
     assert list(t.who) == ["player", "opponent"]
     assert list(t.rating) == [1700, 1720] and list(t.player_rating) == [1700, 1700]
     assert list(t.username) == ["me", "opp"]
+
+
+def test_open_engine_falls_back_to_path(monkeypatch):
+    monkeypatch.delenv("STOCKFISH_PATH", raising=False)
+    monkeypatch.setattr(features.shutil, "which", lambda name, path=None: "/usr/games/stockfish")
+    monkeypatch.setattr(features.chess.engine.SimpleEngine, "popen_uci", lambda p: ("engine", p))
+    assert features.open_engine() == ("engine", "/usr/games/stockfish")
+
+
+def test_open_engine_none_without_stockfish(monkeypatch):
+    monkeypatch.delenv("STOCKFISH_PATH", raising=False)
+    monkeypatch.setattr(features.shutil, "which", lambda name, path=None: None)
+    assert features.open_engine() is None
