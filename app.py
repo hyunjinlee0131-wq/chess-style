@@ -70,7 +70,7 @@ if st.runtime.exists():
     except ValueError as e:
         st.error(str(e))
         st.stop()
-    except (urllib.error.URLError, TimeoutError, OSError):
+    except (urllib.error.URLError, TimeoutError, ConnectionError):
         st.error("chess.com didn't respond. Try again in a minute.")
         st.stop()
 
