@@ -124,26 +124,10 @@ tests/              pytest suite (92 tests)
 
 ## What I learned
 
-- **Working with a real API.** Pulling tens of thousands of games from chess.com meant caching
-  everything, retrying on timeouts, and making the GM pool build able to resume halfway.
+- **Working with a real API.** Pulling tens of thousands of games from chess.com.
 - **Turning a game into numbers.** Deciding what counts as a "habit", then computing it from
   moves and clock times with python-chess. Using Stockfish from code to tell a sacrifice from
   a blunder.
-- **Comparing fairly.** Raw stats mostly say who's stronger. Z-scores against the same rating
-  and taking out the opening effect were what made the comparison about style.
-- **Similarity matching.** How a nearest-centroid classifier with cosine similarity works, and
-  why I wrote it myself instead of using a library (to handle missing values).
-- **Showing how sure a result is.** Bootstrapping to get a range and a "stays in your top 3"
-  chance instead of a single number.
-- **Testing the method, not just the code.** Holding out games, setting a pass mark before
+- **Similarity matching.** How a nearest-centroid classifier with cosine similarity works.
+- **Validation of method.** Bootstrapping the test to make sure it's reasonable, holding out games, setting a pass mark before
   looking, comparing against chance, and shuffling features to see which ones matter.
-- **Catching a result that looked too good.** Blitz first scored 80% and I almost took it at
-  face value, until I noticed the train and test games were only weeks apart.
-- **Writing tests.** 92 pytest tests, with fake chess.com responses so they run offline, and real
-  Stockfish checks on positions I set up by hand (a hung queen vs a sound sacrifice).
-- **Building and shipping an app.** Streamlit, a custom theme, charts, and deploying it so
-  anyone can try it.
-- **Explaining statistics in plain words.** Turning "+0.86σ" into "you spend more time in the
-  middlegame than most players at your rating".
-- **Git and debugging.** Feature branches, pull requests, and tracking a crash down to an
-  environment variable pointing at a file that had moved.
