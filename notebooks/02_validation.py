@@ -25,3 +25,22 @@ match.identify(gm, 100, shuffle=True)
 
 # %% Verdict against the pre-registered bar
 print("PASS" if base >= 0.30 else "FAIL", f"top-5 @ 100 games = {base:.0%} (bar 30%)")
+
+# %% 5. Blitz pool: same identification test (the app matches blitz games only against GM blitz games)
+blitz = pd.read_csv(fetch.DATA / "gm_blitz.csv")
+print(blitz.username.nunique(), "GMs,", len(blitz), "blitz games")
+b = match.identify(blitz, 100)
+print(pd.DataFrame({"blitz": b, "blitz, shuffled labels": match.identify(blitz, 100, shuffle=True)}).T)
+print("PASS" if b["top5"] >= 0.30 else "FAIL", f"blitz top-5 @ 100 games = {b['top5']:.0%} (bar 30%)")
+
+# %% 6. Same test with a time gap (each GM's middle 20% of games dropped): blitz games span months, rapid years
+def gapped(t):
+    t = t.sort_values("end_time", kind="stable")
+    pos = t.groupby("username").cumcount() / t.groupby("username").username.transform("size")
+    return t[(pos < 0.4) | (pos >= 0.6)]
+span = lambda t: (t.groupby("username").end_time.agg(lambda s: s.max() - s.min()) / 86400).median()
+print(f"median span per GM: rapid {span(gm):.0f} days, blitz {span(blitz):.0f} days")
+pd.DataFrame({"rapid, gapped": match.identify(gapped(gm), 100), "blitz, gapped": match.identify(gapped(blitz), 100)}).T
+
+# %% 7. How much of the blitz signal is clock use? (shuffle the four time-use habits in the test games)
+print(pd.DataFrame({"blitz": match.identify(blitz, 100), "blitz, clock habits shuffled": match.identify(blitz, 100, drop=profile.GROUPS["Time use"])}).T)

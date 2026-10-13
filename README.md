@@ -3,6 +3,10 @@
 Style profiling and grandmaster matching for any chess.com rapid player, measured against
 players of the **same rating**, adjusted for **openings**, with an honest validation.
 
+## Try it
+Run the web app locally: `.venv/Scripts/python -m streamlit run app.py`, then enter any chess.com username.
+It analyses the 300 most recent rated rapid games (no climb chart; see the notebooks for full history).
+
 ## Question
 Comparing an 1800 to a grandmaster on raw stats mostly measures strength: GMs blunder less, convert more and
 play longer games. This project asks a narrower question: once rating and opening repertoire are taken out,
@@ -14,6 +18,7 @@ which GM's habits (when they trade queens, how they castle, how they spend the c
 - Peer baseline: the opponents' side of the same games, in 5 equal-count rating bands.
 - GMs: 43 GMs (25 famous, 18 top of the rapid/blitz leaderboards) plus 5 media players, each with 100+
   rated rapid games: 19,036 games, played 2011–2026 (median mid-2023).
+- GM blitz pool (for the app's Blitz option): 48 of the same accounts, their up to 500 most recent blitz games (N = 23,837).
 
 ## Method
 21 move-based features (python-chess) in 5 groups; Stockfish only to tell sacrifices from blunders.
@@ -29,7 +34,8 @@ cosine similarity, 1,000-sample bootstrap for uncertainty.
 - Closest GMs: viditchess 0.80 [0.73, 0.86], P(top 3) 81%; firouzja2003 0.79 [0.74, 0.84], 88%;
   grischuk 0.79 [0.75, 0.83], 87%. All three are driven by the shared middlegame time use and time trouble.
   The top 5 is fairly stable: the two halves of my recent games share 4 of their 5 matches.
-- Validation: top-5 identification @ 100 games = 44% vs chance 10% → **PASS** (bar 30%, fixed in advance).
+- Validation (rapid pool): top-5 identification @ 100 games = 44% vs chance 10% → **PASS** (bar 30%, fixed in advance).
+  Blitz pool: top-5 @ 100 games = 80% vs chance 10% → **PASS**. Not directly comparable to the rapid figure: each GM's recent blitz games span about 166 days (median) against 2283 days for rapid, so training and test games are close in time. With a gap between them (each GM's middle 20% of games dropped) it is 72% for blitz against 39% for rapid — the blitz gap is only about a month, against more than a year for rapid — and clock-use habits carry much of the blitz signal (shuffling them drops top-5 from 80% to 51%).
   Opening ablation: raw features identify GMs better (54%) than opening-adjusted ones (44%), so repertoire
   carries real identity signal, which the adjustment deliberately removes. Most informative features: none
   stands out; shuffling any single feature costs at most 1.4 points (captures, pawn share), so the signal is
@@ -40,6 +46,7 @@ cosine similarity, 1,000-sample bootstrap for uncertainty.
 - Untestable assumption: "unusual for your level" means the same at 1800 and GM level.
 - Material-blunder detection only sees immediate material loss; positional mistakes are invisible.
 - GM rapid games may be years old (oldest 2011).
+- 'How well you play' compares you with your opponents in the same games, within wins, draws and losses separately; accuracy only exists for games reviewed on chess.com.
 - The validation has only 70 held-out 100-game chunks, so each accuracy figure is ±~6 points.
 
 ## Run it

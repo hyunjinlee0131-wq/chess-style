@@ -2,6 +2,7 @@
 import io
 import math
 import os
+import shutil
 
 import chess
 import chess.engine
@@ -63,8 +64,10 @@ def _time(own_clocks, base, inc):
 
 
 def open_engine():
-    """Stockfish from $STOCKFISH_PATH, or None (sacrifice/blunder features then stay NaN)."""
-    path = os.environ.get("STOCKFISH_PATH")
+    """Stockfish from $STOCKFISH_PATH, else on PATH or in /usr/games (Debian's apt location), else None
+    (sacrifice/blunder features then stay NaN)."""
+    path = os.environ.get("STOCKFISH_PATH") or shutil.which(
+        "stockfish", path=os.environ.get("PATH", "") + os.pathsep + "/usr/games")
     return chess.engine.SimpleEngine.popen_uci(path) if path else None
 
 
@@ -164,5 +167,9 @@ def features_table(games, username, engine=None):
         for side in ("white", "black"):
             rows.append({"game": g["url"], "end_time": g["end_time"], "who": "player" if side == me else "opponent",
                          "username": g[side]["username"].lower(), "side": side, "rating": g[side]["rating"],
-                         "player_rating": g[me]["rating"], "time_control": g["time_control"], **feats[side]})
+                         "player_rating": g[me]["rating"], "time_control": g["time_control"],
+                         "accuracy": (g.get("accuracies") or {}).get(side, NAN),
+                         "outcome": "win" if g[side].get("result") == "win" else
+                                    "loss" if g["black" if side == "white" else "white"].get("result") == "win" else "draw",
+                         **feats[side]})
     return pd.DataFrame(rows)

@@ -76,3 +76,33 @@ def test_features_table_rows_and_skips():
     assert list(t.who) == ["player", "opponent"]
     assert list(t.rating) == [1700, 1720] and list(t.player_rating) == [1700, 1700]
     assert list(t.username) == ["me", "opp"]
+
+
+def test_open_engine_falls_back_to_path(monkeypatch):
+    monkeypatch.delenv("STOCKFISH_PATH", raising=False)
+    seen = []
+    monkeypatch.setattr(features.shutil, "which", lambda name, path=None: seen.append(path) or "/usr/games/stockfish")
+    monkeypatch.setattr(features.chess.engine.SimpleEngine, "popen_uci", lambda p: ("engine", p))
+    assert features.open_engine() == ("engine", "/usr/games/stockfish")
+    assert any("/usr/games" in (p or "") for p in seen)
+
+
+def test_open_engine_none_without_stockfish(monkeypatch):
+    monkeypatch.delenv("STOCKFISH_PATH", raising=False)
+    monkeypatch.setattr(features.shutil, "which", lambda name, path=None: None)
+    assert features.open_engine() is None
+
+
+def test_features_table_records_accuracy():
+    g = {"url": "u1", "end_time": 1, "time_control": "600", "pgn": CASTLE,
+         "white": {"username": "Me", "rating": 1700, "result": "win"},
+         "black": {"username": "Opp", "rating": 1720, "result": "resigned"},
+         "accuracies": {"white": 81.5, "black": 74.2}}
+    no_review = {k: v for k, v in g.items() if k != "accuracies"}
+    t = features.features_table([g, dict(no_review, url="u2"), dict(g, url="u3", accuracies=None)], "me")
+    assert list(t.accuracy[:2]) == [81.5, 74.2]
+    assert t.accuracy[2:].isna().all()
+    assert list(t.outcome[:2]) == ["win", "loss"]
+    d = dict(g, url="u4", white={"username": "Me", "rating": 1700, "result": "agreed"},
+             black={"username": "Opp", "rating": 1720, "result": "agreed"})
+    assert list(features.features_table([d], "me").outcome) == ["draw", "draw"]
