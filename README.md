@@ -4,7 +4,7 @@ Style profiling and grandmaster matching for any chess.com rapid player, measure
 players of the **same rating**, adjusted for **openings**, with an honest validation.
 
 ## Try it
-Run the web app locally: `.venv/Scripts/python -m streamlit run app.py`, then enter any chess.com username.
+Live app: https://chess-style-kb7oec7x4aaycan7ovxt6c.streamlit.app/ — enter any chess.com username. Or run it locally: `.venv/Scripts/python -m streamlit run app.py`.
 It analyses the 300 most recent rated rapid games (no climb chart; see the notebooks for full history).
 
 ## Question
