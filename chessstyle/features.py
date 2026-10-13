@@ -65,8 +65,9 @@ def _time(own_clocks, base, inc):
 
 def open_engine():
     """Stockfish from $STOCKFISH_PATH, else on PATH or in /usr/games (Debian's apt location), else None
-    (sacrifice/blunder features then stay NaN)."""
-    path = os.environ.get("STOCKFISH_PATH") or shutil.which(
+    (sacrifice/blunder features then stay NaN). A $STOCKFISH_PATH that no longer exists is skipped."""
+    path = os.environ.get("STOCKFISH_PATH")
+    path = path if path and os.path.isfile(path) else shutil.which(
         "stockfish", path=os.environ.get("PATH", "") + os.pathsep + "/usr/games")
     return chess.engine.SimpleEngine.popen_uci(path) if path else None
 

@@ -87,6 +87,12 @@ def test_open_engine_falls_back_to_path(monkeypatch):
     assert any("/usr/games" in (p or "") for p in seen)
 
 
+def test_open_engine_skips_missing_stockfish_path(monkeypatch):
+    monkeypatch.setenv("STOCKFISH_PATH", "/no/such/stockfish.exe")
+    monkeypatch.setattr(features.shutil, "which", lambda name, path=None: None)
+    assert features.open_engine() is None
+
+
 def test_open_engine_none_without_stockfish(monkeypatch):
     monkeypatch.delenv("STOCKFISH_PATH", raising=False)
     monkeypatch.setattr(features.shutil, "which", lambda name, path=None: None)
