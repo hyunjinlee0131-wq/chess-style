@@ -8,3 +8,6 @@ data/*
 Tools/
 !data/gm_blitz.csv
 !data/gm_blitz_results.csv
+
+# planning notes kept locally
+docs/

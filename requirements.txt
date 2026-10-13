@@ -1,7 +1,6 @@
 python-chess
 pandas
 numpy
-scikit-learn
 matplotlib
 jupyter
 pytest
